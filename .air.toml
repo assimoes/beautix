@@ -1,0 +1,23 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/beautix-api ./cmd/api"
+  bin = "./tmp/beautix-api"
+  include_ext = ["go", "sql"]
+  exclude_dir = ["tmp", "vendor", ".git"]
+  delay = 1000
+  kill_delay = 500
+  stop_on_error = true
+
+[log]
+  time = true
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  clean_on_exit = true
