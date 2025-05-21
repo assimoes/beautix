@@ -8,9 +8,13 @@ import (
 	"github.com/assimoes/beautix/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // Helper functions to create test data for repository integration tests
+// Each function is available in two versions:
+// 1. The original version using a direct DB connection (for backward compatibility)
+// 2. A TX version that accepts a transaction for true test isolation
 
 // createTestUser creates a test user in the database
 func createTestUser(t *testing.T, db *database.DB) *models.User {
@@ -25,6 +29,24 @@ func createTestUser(t *testing.T, db *database.DB) *models.User {
 	}
 	
 	err := db.Create(user).Error
+	require.NoError(t, err, "Failed to create test user")
+	
+	return user
+}
+
+// createTestUserTx creates a test user within a transaction
+func createTestUserTx(t *testing.T, tx *gorm.DB) *models.User {
+	user := &models.User{
+		ClerkID:   uuid.New().String(), // Use UUID as a unique clerk_id
+		Email:     uuid.New().String() + "@example.com", // Ensure unique email
+		FirstName: "Test",
+		LastName:  "User",
+		Phone:     "+1234567890",
+		Role:      models.UserRoleStaff,
+		IsActive:  true,
+	}
+	
+	err := tx.Create(user).Error
 	require.NoError(t, err, "Failed to create test user")
 	
 	return user
@@ -54,6 +76,30 @@ func createTestBusiness(t *testing.T, db *database.DB, userID uuid.UUID) *models
 	return business
 }
 
+// createTestBusinessTx creates a test business within a transaction
+func createTestBusinessTx(t *testing.T, tx *gorm.DB, userID uuid.UUID) *models.Business {
+	businessName := "test-business-" + uuid.New().String()
+	business := &models.Business{
+		UserID:           userID,
+		Name:             businessName,
+		DisplayName:      "Test Business",
+		Description:      "Test business description",
+		Address:          "123 Test St",
+		City:             "Test City",
+		Country:          "Test Country",
+		PostalCode:       "12345",
+		Phone:            "+9876543210",
+		Email:            businessName + "@example.com",
+		SubscriptionTier: models.SubscriptionTierBasic,
+		IsActive:         true,
+	}
+	
+	err := tx.Create(business).Error
+	require.NoError(t, err, "Failed to create test business")
+	
+	return business
+}
+
 // createTestStaff creates a test staff member in the database
 func createTestStaff(t *testing.T, db *database.DB, businessID, userID uuid.UUID) *models.Staff {
 	staff := &models.Staff{
@@ -74,6 +120,31 @@ func createTestStaff(t *testing.T, db *database.DB, businessID, userID uuid.UUID
 	staff.CreatedBy = &createdBy
 	
 	err := db.Create(staff).Error
+	require.NoError(t, err, "Failed to create test staff")
+	
+	return staff
+}
+
+// createTestStaffTx creates a test staff member within a transaction
+func createTestStaffTx(t *testing.T, tx *gorm.DB, businessID, userID uuid.UUID) *models.Staff {
+	staff := &models.Staff{
+		BusinessID:      businessID,
+		UserID:          userID,
+		Position:        "Test Position",
+		Bio:             "Test Bio",
+		SpecialtyAreas:  models.SpecialtyAreas{"Test Area 1", "Test Area 2"},
+		ProfileImageURL: "http://example.com/test.jpg",
+		IsActive:        true,
+		EmploymentType:  models.StaffEmploymentTypeFull,
+		JoinDate:        time.Now().Add(-30 * 24 * time.Hour),
+		CommissionRate:  15.0,
+	}
+	
+	// Set created_by
+	createdBy := userID
+	staff.CreatedBy = &createdBy
+	
+	err := tx.Create(staff).Error
 	require.NoError(t, err, "Failed to create test staff")
 	
 	return staff
