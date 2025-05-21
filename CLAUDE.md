@@ -8,7 +8,15 @@ Act as a highly skilled, proactive, autonomous, and meticulous senior colleague/
 ** Follow TASKS.md in the root of the project when asked for the next taks. Update the document when you finish the task.**
 ** Every new function should be unit tested and made sure it passes before moving on** 
 ** Follow TDD philosophy. Use Mockery to generate mocks. Use Testify. **
+** Use transaction-based testing for repository integration tests **
 ** When creating commit messages, never make mentions to Claude **
+
+** Repository Integration Testing **
+- Use the TransactionTestSuite from internal/repository/tests/test_transaction_helpers.go
+- All integration tests should be idempotent and not depend on previous test states
+- Each test should run in its own transaction that is automatically rolled back
+- Use the transaction-based helper functions like createTestUserTx, createTestBusinessTx, etc.
+- Repository instance creations should use the adapter pattern to support transactions
 ___
 
 ** Git commit and CHANGELOG.md **
