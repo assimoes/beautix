@@ -49,7 +49,9 @@ make docker-up
 3. Run database migrations
 
 ```bash
-make migrate-up
+make migrate-up       # Apply all migrations
+make migrate-down     # Rollback the last migration
+make migrate-down-all # Rollback all migrations
 ```
 
 4. Run the application
@@ -62,10 +64,30 @@ The API will be available at http://localhost:8090/graphql, and you can explore 
 
 ## Development
 
-### Create a Migration
+### Database Migrations
 
 ```bash
+# Create a new migration
 make migrate-create MIGRATION_NAME=your_migration_name
+
+# Apply all migrations
+make migrate-up
+
+# Rollback the last migration
+make migrate-down
+
+# Rollback all migrations
+make migrate-down-all
+```
+
+You can also run migrations manually without Make:
+
+```bash
+# Apply all migrations
+migrate -path ./migrations -database "postgres://user:password@localhost:5432/beautix?sslmode=disable" up
+
+# Rollback all migrations
+migrate -path ./migrations -database "postgres://user:password@localhost:5432/beautix?sslmode=disable" down
 ```
 
 ### Run Tests

@@ -5,6 +5,7 @@
 *.so
 *.dylib
 beautix-api
+beautix
 
 # Test binary, built with go test -c
 *.test

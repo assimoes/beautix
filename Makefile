@@ -1,4 +1,4 @@
-.PHONY: build run test test-coverage lint format clean migrate-up migrate-down migrate-create docker-up docker-down docker-logs docker-ps help generate-mocks tidy dev setup air air-install init build-release db-create db-reset db-dump db-restore install-tools all sandbox check
+.PHONY: build run test test-coverage lint format clean migrate-up migrate-down migrate-create docker-up docker-down docker-logs docker-ps help generate-mocks tidy dev setup air air-install init build-release db-create db-reset db-dump db-restore install-tools all check
 
 # Project variables
 PROJECT_NAME := beautix
@@ -105,10 +105,21 @@ help:
 	@echo "  make migrate-create  - Create a new migration (use MIGRATION_NAME=name)"
 	@echo "  make migrate-up      - Run all migrations"
 	@echo "  make migrate-down    - Rollback the last migration"
+	@echo "  make migrate-down-all - Rollback all migrations (interactive)"
+	@echo "  make migrate-force-down-all - Rollback all migrations without confirmation"
 	@echo "  make db-create       - Create database if not exists"
 	@echo "  make db-reset        - Drop and recreate the database"
 	@echo "  make db-dump         - Dump database to file (specify DB_DUMP=file.sql)"
 	@echo "  make db-restore      - Restore database from file (specify DB_DUMP=file.sql)"
+	@echo ""
+	@echo "🔍 Database Inspection Commands:"
+	@echo "  make db-list         - List all databases"
+	@echo "  make db-tables       - List all tables in the database (use DATABASE=db_name for a different database)"
+	@echo "  make db-schemas      - List all schemas in the database (use DATABASE=db_name for a different database)"
+	@echo "  make db-extensions   - List all extensions in the database (use DATABASE=db_name for a different database)" 
+	@echo "  make db-enums        - List all enum types in the database (use DATABASE=db_name for a different database)"
+	@echo "  make db-describe     - Describe a specific table (use TABLE=table_name, DATABASE=db_name for a different database)"
+	@echo "  make db-query        - Run a custom SQL query (use QUERY=\"SELECT * FROM table\", DATABASE=db_name for a different database)"
 	@echo ""
 	@echo "🐳 Docker Commands:"
 	@echo "  make docker-up       - Start Docker containers"
@@ -117,7 +128,6 @@ help:
 	@echo "  make docker-ps       - List running Docker containers"
 	@echo ""
 	@echo "🛠️ Developer Tools:"
-	@echo "  make sandbox         - Open the GraphQL sandbox in the default browser"
 	@echo "  make air-install     - Install Air for live reloading"
 	@echo "  make install-tools   - Install all required development tools"
 	@echo "  make build-release   - Build the application with version information"
@@ -174,19 +184,11 @@ air-install:
 		echo "  clean_on_exit = true\n" >> $(AIR_CONFIG); \
 	fi
 
-# Target: sandbox - Open the GraphQL sandbox in the default browser
-sandbox: docker-up
-	@echo "Opening GraphQL Sandbox in browser..."
-	@case `uname` in \
-		'Darwin') open http://localhost:8090/sandbox ;; \
-		'Linux') xdg-open http://localhost:8090/sandbox ;; \
-		*) echo "Please open http://localhost:8090/sandbox in your browser" ;; \
-	esac
 
 # Target: test - Run tests
 test:
 	@echo "Running tests..."
-	@go test -v ./...
+	@go test ./...
 
 # Target: test-coverage - Run tests with coverage
 test-coverage:
@@ -220,22 +222,22 @@ clean:
 # Target: docker-up - Start Docker containers
 docker-up:
 	@echo "Starting Docker containers..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@docker compose -f $(DOCKER_COMPOSE_FILE) up -d
 
 # Target: docker-down - Stop and remove Docker containers
 docker-down:
 	@echo "Stopping Docker containers..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) down
+	@docker compose -f $(DOCKER_COMPOSE_FILE) down
 
 # Target: docker-logs - Show Docker container logs
 docker-logs:
 	@echo "Showing Docker logs..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) logs -f
+	@docker compose -f $(DOCKER_COMPOSE_FILE) logs -f
 
 # Target: docker-ps - List running Docker containers
 docker-ps:
 	@echo "Listing Docker containers..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) ps
+	@docker compose -f $(DOCKER_COMPOSE_FILE) ps
 
 # Target: db-create - Create database if not exists
 db-create: docker-up
@@ -273,32 +275,126 @@ db-restore: docker-up
 	@docker exec -i beautix_postgres psql -U $(DB_USER) -d $(DB_NAME) < $(DB_DUMP)
 	@echo "Database restore completed."
 
+# Target: db-list - List all databases in the PostgreSQL instance
+db-list: docker-up
+	@echo "Listing all databases..."
+	@docker exec beautix_postgres psql -U $(DB_USER) -c '\l'
+
+# Target: db-tables - List all tables in the specified database (specify DATABASE=db_name to use a different database)
+db-tables: docker-up
+	@TARGET_DB="$(DB_NAME)"; \
+	if [ ! -z "$(DATABASE)" ]; then \
+		TARGET_DB="$(DATABASE)"; \
+	fi; \
+	echo "Listing tables in database $$TARGET_DB..."; \
+	docker exec beautix_postgres psql -U $(DB_USER) -d $$TARGET_DB -c '\dt'
+
+# Target: db-schemas - List all schemas in the specified database (specify DATABASE=db_name to use a different database)
+db-schemas: docker-up
+	@TARGET_DB="$(DB_NAME)"; \
+	if [ ! -z "$(DATABASE)" ]; then \
+		TARGET_DB="$(DATABASE)"; \
+	fi; \
+	echo "Listing schemas in database $$TARGET_DB..."; \
+	docker exec beautix_postgres psql -U $(DB_USER) -d $$TARGET_DB -c '\dn'
+
+# Target: db-extensions - List all extensions in the specified database (specify DATABASE=db_name to use a different database)
+db-extensions: docker-up
+	@TARGET_DB="$(DB_NAME)"; \
+	if [ ! -z "$(DATABASE)" ]; then \
+		TARGET_DB="$(DATABASE)"; \
+	fi; \
+	echo "Listing extensions in database $$TARGET_DB..."; \
+	docker exec beautix_postgres psql -U $(DB_USER) -d $$TARGET_DB -c '\dx'
+
+# Target: db-enums - List all enum types in the database (specify DATABASE=db_name to use a different database)
+db-enums: docker-up
+	@TARGET_DB="$(DB_NAME)"; \
+	if [ ! -z "$(DATABASE)" ]; then \
+		TARGET_DB="$(DATABASE)"; \
+	fi; \
+	echo "Listing enum types in database $$TARGET_DB..."; \
+	docker exec beautix_postgres psql -U $(DB_USER) -d $$TARGET_DB -c "SELECT n.nspname AS schema, t.typname AS type, e.enumlabel AS value FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace ORDER BY schema, type, e.enumsortorder;"
+
+# Target: db-describe - Describe a specific table (specify TABLE=table_name, DATABASE=db_name to use a different database)
+db-describe: docker-up
+	@if [ -z "$(TABLE)" ]; then \
+		echo "Error: Please specify TABLE=table_name"; \
+		exit 1; \
+	fi
+	@TARGET_DB="$(DB_NAME)"; \
+	if [ ! -z "$(DATABASE)" ]; then \
+		TARGET_DB="$(DATABASE)"; \
+	fi; \
+	echo "Describing table $(TABLE) in database $$TARGET_DB..."; \
+	docker exec beautix_postgres psql -U $(DB_USER) -d $$TARGET_DB -c "\d $(TABLE)"
+
+# Target: db-query - Run a custom SQL query (specify QUERY="SELECT * FROM users", DATABASE=db_name to use a different database)
+db-query: docker-up
+	@if [ -z "$(QUERY)" ]; then \
+		echo "Error: Please specify QUERY=\"SELECT * FROM users\""; \
+		exit 1; \
+	fi
+	@TARGET_DB="$(DB_NAME)"; \
+	if [ ! -z "$(DATABASE)" ]; then \
+		TARGET_DB="$(DATABASE)"; \
+	fi; \
+	echo "Running query in database $$TARGET_DB..."; \
+	docker exec beautix_postgres psql -U $(DB_USER) -d $$TARGET_DB -c "$(QUERY)"
+
+# Set the migrate binary path
+MIGRATE_BIN := $(shell go env GOPATH)/bin/migrate
+
 # Target: migrate-create - Create a new migration
 migrate-create:
 	@echo "Creating migration $(MIGRATION_NAME)..."
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -f "$(MIGRATE_BIN)" ]; then \
 		echo "Installing migrate command..."; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(MIGRATION_NAME)
+	@$(MIGRATE_BIN) create -ext sql -dir $(MIGRATIONS_DIR) -seq $(MIGRATION_NAME)
 
 # Target: migrate-up - Run all migrations
 migrate-up: docker-up
 	@echo "Running migrations up..."
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -f "$(MIGRATE_BIN)" ]; then \
 		echo "Installing migrate command..."; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
+	@$(MIGRATE_BIN) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
 
 # Target: migrate-down - Rollback the last migration
 migrate-down: docker-up
 	@echo "Running migrations down..."
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -f "$(MIGRATE_BIN)" ]; then \
 		echo "Installing migrate command..."; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1
+	@$(MIGRATE_BIN) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1
+
+# Target: migrate-down-all - Rollback all migrations (interactive)
+migrate-down-all: docker-up
+	@echo "Rolling back all migrations..."
+	@if [ ! -f "$(MIGRATE_BIN)" ]; then \
+		echo "Installing migrate command..."; \
+		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
+	fi
+	@echo "This will drop all tables in the database. Are you sure? [y/N]"
+	@read -r confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		$(MIGRATE_BIN) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down; \
+	else \
+		echo "Migration rollback cancelled."; \
+	fi
+
+# Target: migrate-force-down-all - Rollback all migrations without confirmation (for CI/CD)
+migrate-force-down-all: docker-up
+	@echo "Forcing rollback of all migrations..."
+	@if [ ! -f "$(MIGRATE_BIN)" ]; then \
+		echo "Installing migrate command..."; \
+		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
+	fi
+	@$(MIGRATE_BIN) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" force 0
 
 # Target: generate-mocks - Generate mocks for testing
 generate-mocks:

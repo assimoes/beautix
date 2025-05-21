@@ -1,13 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/assimoes/beautix/configs"
-	"github.com/assimoes/beautix/internal/http"
-	"github.com/assimoes/beautix/internal/mock"
-	"github.com/assimoes/beautix/pkg/graph"
+	"github.com/assimoes/beautix/internal/infrastructure/database"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -50,38 +47,15 @@ func main() {
 		Str("environment", config.Environment).
 		Msg("Starting BeautyBiz API")
 
-	// Create mock services and resolver
-	serviceFactory := mock.NewServiceFactory()
-	resolver := graph.NewResolver(
-		serviceFactory.UserService,
-		serviceFactory.ProviderService,
-		serviceFactory.ServiceCategoryService,
-		serviceFactory.ServiceService,
-		serviceFactory.ClientService,
-		serviceFactory.AppointmentService,
-		serviceFactory.ServiceCompletionService,
-		serviceFactory.LoyaltyProgramService,
-		serviceFactory.LoyaltyRewardService,
-		serviceFactory.ClientLoyaltyService,
-		serviceFactory.CampaignService,
-	)
-
-	// Create GraphQL handler
-	graphQLHandler, err := graph.NewHandler(resolver)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create GraphQL handler")
+	// Initialize database
+	if err := database.InitDB(config); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize database")
 	}
+	defer database.CloseDB()
+
+	// For now, we're focusing on database setup and will implement HTTP server later
+	log.Info().Msg("Database setup complete. HTTP server implementation pending.")
 	
-	// Set the user service for authentication
-	graphQLHandler.SetUserService(serviceFactory.UserService)
-
-	// Create and setup HTTP server
-	server := http.NewServer(graphQLHandler, config.App.Host, config.App.Port)
-	server.Setup()
-
-	// Run the server
-	if err := server.Run(); err != nil {
-		log.Fatal().Err(err).Msg("Server failed")
-	}
+	// Keep the application running until interrupted
+	select {}
 }
-
