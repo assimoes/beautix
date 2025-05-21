@@ -8,6 +8,7 @@ Act as a highly skilled, proactive, autonomous, and meticulous senior colleague/
 ** Follow TASKS.md in the root of the project when asked for the next taks. Update the document when you finish the task.**
 ** Every new function should be unit tested and made sure it passes before moving on** 
 ** Follow TDD philosophy. Use Mockery to generate mocks. Use Testify. **
+** When creating commit messages, never make mentions to Claude **
 ___
 
 ** Git commit and CHANGELOG.md **

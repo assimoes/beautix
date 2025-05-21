@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unit tests for service assignments, availability exceptions, and staff performance metrics
 - Repository unit tests using mockery for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance
 - Repository implementations using GORM for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance
+- Integration tests for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance repositories
 
 ### Changed
 - Restructured code to follow Clean Architecture principles

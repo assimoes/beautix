@@ -10,14 +10,14 @@ This document outlines the tasks for building the BeautyBiz application using a 
 - [x] Create database models for Users and Auth
 - [x] Create database models for Businesses (Providers)
 - [x] Create database models for Staff
-- [ ] Create database models for Services and Categories
-- [ ] Create database models for Clients
-- [ ] Create database models for Appointments
+- [x] Create database models for Services and Categories
+- [x] Create database models for Clients
+- [x] Create database models for Appointments
 
 ### Medium Priority
 
-- [ ] Create database models for Loyalty Programs
-- [ ] Create database models for Marketing Campaigns
+- [x] Create database models for Loyalty Programs
+- [x] Create database models for Marketing Campaigns
 
 ## Repository Layer - Users
 
@@ -38,7 +38,7 @@ This document outlines the tasks for building the BeautyBiz application using a 
 - [x] Create repository interfaces for Staff
 - [x] Create repository unit tests for Staff
 - [x] Implement Staff repository with GORM
-- [ ] Create repository integration tests for Staff
+- [x] Create repository integration tests for Staff
 
 ## Repository Layer - Services and Categories
 
