@@ -7,7 +7,6 @@ import (
 	"github.com/assimoes/beautix/internal/infrastructure/database"
 	"github.com/assimoes/beautix/internal/models"
 	"github.com/assimoes/beautix/internal/repository"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -17,7 +16,7 @@ import (
 // This ensures tests are truly idempotent regardless of what data was created
 // during test execution.
 type TransactionTestSuite struct {
-	DB       *database.DB
+	DB       *database.TestDB
 	Tx       *gorm.DB
 	t        *testing.T
 	teardown func()
@@ -32,15 +31,9 @@ func NewTransactionTestSuite(t *testing.T) *TransactionTestSuite {
 	// Start a transaction
 	tx := testDB.Begin()
 	
-	// Override the default test cleanup to rollback the transaction
-	// and then run the original cleanup
-	originalCleanup := t.Cleanup
-	
 	teardown := func() {
 		// Always rollback the transaction
 		tx.Rollback()
-		
-		// No need to manually call cleanup since t.Cleanup handles this
 	}
 	
 	t.Cleanup(teardown)
@@ -57,11 +50,14 @@ func NewTransactionTestSuite(t *testing.T) *TransactionTestSuite {
 // the transaction connection, ensuring all operations are contained in a transaction
 // that will be rolled back when the test completes
 func (ts *TransactionTestSuite) CreateTestRepositories() *TestRepositories {
+	// Create a DB adapter that wraps our transaction
+	txAdapter := NewDBAdapter(ts.Tx)
+	
 	return &TestRepositories{
-		StaffRepo:                  repository.NewStaffRepository(ts.Tx),
-		ServiceAssignmentRepo:      repository.NewServiceAssignmentRepository(ts.Tx),
-		AvailabilityExceptionRepo:  repository.NewAvailabilityExceptionRepository(ts.Tx),
-		StaffPerformanceRepo:       repository.NewStaffPerformanceRepository(ts.Tx),
+		StaffRepo:                  repository.NewStaffRepository(txAdapter),
+		ServiceAssignmentRepo:      repository.NewServiceAssignmentRepository(txAdapter),
+		AvailabilityExceptionRepo:  repository.NewAvailabilityExceptionRepository(txAdapter),
+		StaffPerformanceRepo:       repository.NewStaffPerformanceRepository(txAdapter),
 	}
 }
 
