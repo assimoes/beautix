@@ -28,6 +28,42 @@ func (b *BaseModel) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// Audit interface implementations for BaseModel
+
+// SetCreatedBy sets the user who created the entity
+func (b *BaseModel) SetCreatedBy(userID *uuid.UUID) {
+	b.CreatedBy = userID
+}
+
+// SetCreatedAt sets the creation timestamp
+func (b *BaseModel) SetCreatedAt(t time.Time) {
+	b.CreatedAt = t
+}
+
+// SetUpdatedBy sets the user who last updated the entity
+func (b *BaseModel) SetUpdatedBy(userID *uuid.UUID) {
+	b.UpdatedBy = userID
+}
+
+// SetUpdatedAt sets the last update timestamp
+func (b *BaseModel) SetUpdatedAt(t *time.Time) {
+	if t != nil {
+		b.UpdatedAt = *t
+	}
+}
+
+// SetDeletedBy sets the user who deleted the entity
+func (b *BaseModel) SetDeletedBy(userID *uuid.UUID) {
+	b.DeletedBy = userID
+}
+
+// SetDeletedAt sets the deletion timestamp
+func (b *BaseModel) SetDeletedAt(t *time.Time) {
+	if t != nil {
+		b.DeletedAt = gorm.DeletedAt{Time: *t, Valid: true}
+	}
+}
+
 // TenantModel extends BaseModel with business_id for multi-tenancy
 type TenantModel struct {
 	BaseModel

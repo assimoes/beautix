@@ -7,29 +7,28 @@ import (
 	"time"
 
 	"github.com/assimoes/beautix/internal/domain"
-	"github.com/assimoes/beautix/internal/infrastructure/database"
 	"github.com/assimoes/beautix/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// GormStaffPerformanceRepository implements the domain.StaffPerformanceRepository interface using GORM
-type GormStaffPerformanceRepository struct {
-	db *database.DB
+// StaffPerformanceRepository implements the domain.StaffPerformanceRepository interface using GORM
+type StaffPerformanceRepository struct {
+	*BaseRepository
 }
 
-// NewStaffPerformanceRepository creates a new instance of GormStaffPerformanceRepository
-func NewStaffPerformanceRepository(db *database.DB) domain.StaffPerformanceRepository {
-	return &GormStaffPerformanceRepository{
-		db: db,
+// NewStaffPerformanceRepository creates a new instance of StaffPerformanceRepository
+func NewStaffPerformanceRepository(db DBAdapter) domain.StaffPerformanceRepository {
+	return &StaffPerformanceRepository{
+		BaseRepository: NewBaseRepository(db),
 	}
 }
 
 // Create creates a new staff performance record
-func (r *GormStaffPerformanceRepository) Create(ctx context.Context, performance *domain.StaffPerformance) error {
+func (r *StaffPerformanceRepository) Create(ctx context.Context, performance *domain.StaffPerformance) error {
 	performanceModel := mapPerformanceDomainToModel(performance)
 	
-	if err := r.db.WithContext(ctx).Create(&performanceModel).Error; err != nil {
+	if err := r.WithContext(ctx).Create(&performanceModel).Error; err != nil {
 		return fmt.Errorf("failed to create staff performance: %w", err)
 	}
 	
@@ -42,32 +41,29 @@ func (r *GormStaffPerformanceRepository) Create(ctx context.Context, performance
 }
 
 // GetByID retrieves a staff performance record by ID
-func (r *GormStaffPerformanceRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.StaffPerformance, error) {
+func (r *StaffPerformanceRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.StaffPerformance, error) {
 	var performanceModel models.StaffPerformance
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		First(&performanceModel, "id = ?", id).Error
 	
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("staff performance not found with ID %s", id)
-		}
-		return nil, fmt.Errorf("failed to get staff performance by ID: %w", err)
+		return nil, r.HandleNotFound(err, "staff performance", id)
 	}
 	
 	return mapPerformanceModelToDomain(&performanceModel), nil
 }
 
 // GetByStaffAndPeriod retrieves a staff performance record by staff ID, period type, and start date
-func (r *GormStaffPerformanceRepository) GetByStaffAndPeriod(ctx context.Context, staffID uuid.UUID, period string, startDate time.Time) (*domain.StaffPerformance, error) {
+func (r *StaffPerformanceRepository) GetByStaffAndPeriod(ctx context.Context, staffID uuid.UUID, period string, startDate time.Time) (*domain.StaffPerformance, error) {
 	var performanceModel models.StaffPerformance
 	
 	// Format the date to truncate time component for more reliable matching
 	formattedDate := startDate.Format("2006-01-02")
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("staff_id = ? AND period = ? AND DATE(start_date) = ?", 
@@ -86,21 +82,15 @@ func (r *GormStaffPerformanceRepository) GetByStaffAndPeriod(ctx context.Context
 }
 
 // GetByStaffAndDateRange retrieves staff performance records by staff ID and date range
-func (r *GormStaffPerformanceRepository) GetByStaffAndDateRange(ctx context.Context, staffID uuid.UUID, startDate, endDate time.Time) ([]*domain.StaffPerformance, error) {
+func (r *StaffPerformanceRepository) GetByStaffAndDateRange(ctx context.Context, staffID uuid.UUID, startDate, endDate time.Time) ([]*domain.StaffPerformance, error) {
 	var performanceModels []models.StaffPerformance
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("staff_id = ?", staffID).
-		Where(
-			// Either the performance period starts within the range
-			r.db.Where("start_date BETWEEN ? AND ?", startDate, endDate).
-				// Or the performance period ends within the range
-				Or("end_date BETWEEN ? AND ?", startDate, endDate).
-				// Or the performance period spans the entire range
-				Or("(start_date <= ? AND end_date >= ?)", startDate, endDate),
-		).
+		Where("start_date BETWEEN ? AND ? OR end_date BETWEEN ? AND ? OR (start_date <= ? AND end_date >= ?)", 
+			startDate, endDate, startDate, endDate, startDate, endDate).
 		Order("start_date ASC").
 		Find(&performanceModels).Error
 	
@@ -112,15 +102,12 @@ func (r *GormStaffPerformanceRepository) GetByStaffAndDateRange(ctx context.Cont
 }
 
 // Update updates a staff performance record
-func (r *GormStaffPerformanceRepository) Update(ctx context.Context, id uuid.UUID, performance *domain.StaffPerformance) error {
+func (r *StaffPerformanceRepository) Update(ctx context.Context, id uuid.UUID, performance *domain.StaffPerformance) error {
 	// First find the performance record to ensure it exists
 	var performanceModel models.StaffPerformance
-	err := r.db.WithContext(ctx).First(&performanceModel, "id = ?", id).Error
+	err := r.WithContext(ctx).First(&performanceModel, "id = ?", id).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("staff performance not found with ID %s", id)
-		}
-		return fmt.Errorf("failed to find staff performance for update: %w", err)
+		return r.HandleNotFound(err, "staff performance", id)
 	}
 	
 	// Map domain entity to model
@@ -129,7 +116,7 @@ func (r *GormStaffPerformanceRepository) Update(ctx context.Context, id uuid.UUI
 	updatedModel.UpdatedAt = time.Now()
 	
 	// Perform the update
-	err = r.db.WithContext(ctx).Model(&performanceModel).Updates(map[string]interface{}{
+	err = r.WithContext(ctx).Model(&performanceModel).Updates(map[string]interface{}{
 		"period":                 updatedModel.Period,
 		"start_date":             updatedModel.StartDate,
 		"end_date":               updatedModel.EndDate,
@@ -153,19 +140,16 @@ func (r *GormStaffPerformanceRepository) Update(ctx context.Context, id uuid.UUI
 }
 
 // Delete deletes a staff performance record
-func (r *GormStaffPerformanceRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *StaffPerformanceRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	// First find the performance record to ensure it exists
 	var performanceModel models.StaffPerformance
-	err := r.db.WithContext(ctx).First(&performanceModel, "id = ?", id).Error
+	err := r.WithContext(ctx).First(&performanceModel, "id = ?", id).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("staff performance not found with ID %s", id)
-		}
-		return fmt.Errorf("failed to find staff performance for deletion: %w", err)
+		return r.HandleNotFound(err, "staff performance", id)
 	}
 	
 	// Perform the delete (hard delete since these are metrics that can be recalculated)
-	err = r.db.WithContext(ctx).Unscoped().Delete(&performanceModel).Error
+	err = r.WithContext(ctx).Unscoped().Delete(&performanceModel).Error
 	if err != nil {
 		return fmt.Errorf("failed to delete staff performance: %w", err)
 	}
@@ -174,13 +158,13 @@ func (r *GormStaffPerformanceRepository) Delete(ctx context.Context, id uuid.UUI
 }
 
 // ListByBusiness retrieves a paginated list of staff performance records by business ID and period
-func (r *GormStaffPerformanceRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, period string, page, pageSize int) ([]*domain.StaffPerformance, error) {
+func (r *StaffPerformanceRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, period string, page, pageSize int) ([]*domain.StaffPerformance, error) {
 	var performanceModels []models.StaffPerformance
 	
 	// Apply pagination
-	offset := (page - 1) * pageSize
+	offset := r.CalculateOffset(page, pageSize)
 	
-	query := r.db.WithContext(ctx).
+	query := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("business_id = ?", businessID)
@@ -264,7 +248,7 @@ func mapPerformanceModelToDomain(p *models.StaffPerformance) *domain.StaffPerfor
 	
 	// Map related entities if loaded
 	if p.Staff.ID != uuid.Nil {
-		performance.Staff = mapModelToDomain(&p.Staff)
+		performance.Staff = mapStaffModelToDomain(&p.Staff)
 	}
 	
 	return performance

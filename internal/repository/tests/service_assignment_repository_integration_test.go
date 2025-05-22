@@ -18,7 +18,7 @@ func TestServiceAssignmentRepositoryIntegration_Create(t *testing.T) {
 	
 	// Create test data
 	testData := suite.CreateTestData()
-	service := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 
 	// Create a new service assignment
 	createdBy := testData.User.ID
@@ -56,7 +56,7 @@ func TestServiceAssignmentRepositoryIntegration_GetByID(t *testing.T) {
 	
 	// Create test data
 	testData := suite.CreateTestData()
-	service := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 	assignment := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service.ID, testData.User.ID)
 
 	// Test GetByID
@@ -84,7 +84,7 @@ func TestServiceAssignmentRepositoryIntegration_GetByStaffAndService(t *testing.
 	
 	// Create test data
 	testData := suite.CreateTestData()
-	service := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 	assignment := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service.ID, testData.User.ID)
 
 	// Test GetByStaffAndService
@@ -106,8 +106,8 @@ func TestServiceAssignmentRepositoryIntegration_GetByStaff(t *testing.T) {
 	
 	// Create test data
 	testData := suite.CreateTestData()
-	service1 := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
-	service2 := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service1 := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service2 := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 	assignment1 := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service1.ID, testData.User.ID)
 	assignment2 := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service2.ID, testData.User.ID)
 
@@ -138,7 +138,7 @@ func TestServiceAssignmentRepositoryIntegration_GetByService(t *testing.T) {
 	// Create test data
 	testData := suite.CreateTestData()
 	staff2 := createTestStaffTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
-	service := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 	assignment1 := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service.ID, testData.User.ID)
 	assignment2 := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, staff2.ID, service.ID, testData.User.ID)
 
@@ -168,7 +168,7 @@ func TestServiceAssignmentRepositoryIntegration_Update(t *testing.T) {
 	
 	// Create test data
 	testData := suite.CreateTestData()
-	service := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 	assignment := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service.ID, testData.User.ID)
 
 	// Create update input
@@ -199,7 +199,7 @@ func TestServiceAssignmentRepositoryIntegration_Delete(t *testing.T) {
 	
 	// Create test data
 	testData := suite.CreateTestData()
-	service := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+	service := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 	assignment := createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, service.ID, testData.User.ID)
 
 	// Test Delete
@@ -227,13 +227,13 @@ func TestServiceAssignmentRepositoryIntegration_ListByBusiness(t *testing.T) {
 
 	// Create 3 assignments for business1
 	for i := 0; i < 3; i++ {
-		s := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+		s := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 		createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, s.ID, testData.User.ID)
 	}
 
 	// Create 2 assignments for business2
 	for i := 0; i < 2; i++ {
-		s := createTestServiceTx(t, suite.Tx, business2.ID, testData.User.ID)
+		s := createTestServiceWithCategoryTx(t, suite.Tx, business2.ID, testData.User.ID)
 		createTestServiceAssignmentTx(t, suite.Tx, business2.ID, staff2.ID, s.ID, testData.User.ID)
 	}
 
@@ -271,13 +271,13 @@ func TestServiceAssignmentRepositoryIntegration_CountByBusiness(t *testing.T) {
 
 	// Create 3 assignments for business1
 	for i := 0; i < 3; i++ {
-		s := createTestServiceTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
+		s := createTestServiceWithCategoryTx(t, suite.Tx, testData.Business.ID, testData.User.ID)
 		createTestServiceAssignmentTx(t, suite.Tx, testData.Business.ID, testData.Staff.ID, s.ID, testData.User.ID)
 	}
 
 	// Create 2 assignments for business2
 	for i := 0; i < 2; i++ {
-		s := createTestServiceTx(t, suite.Tx, business2.ID, testData.User.ID)
+		s := createTestServiceWithCategoryTx(t, suite.Tx, business2.ID, testData.User.ID)
 		createTestServiceAssignmentTx(t, suite.Tx, business2.ID, staff2.ID, s.ID, testData.User.ID)
 	}
 

@@ -35,8 +35,8 @@ func createTestStaffWithPositionTx(t *testing.T, tx *gorm.DB, businessID, userID
 	return staff
 }
 
-// createTestServiceTx creates a test service in the database within a transaction
-func createTestServiceTx(t *testing.T, tx *gorm.DB, businessID, createdByID uuid.UUID) *models.Service {
+// createTestServiceWithCategoryTx creates a test service with a new category in the database within a transaction
+func createTestServiceWithCategoryTx(t *testing.T, tx *gorm.DB, businessID, createdByID uuid.UUID) *models.Service {
 	// Create a service category first
 	category := &models.ServiceCategory{
 		Name:        "Test Category",

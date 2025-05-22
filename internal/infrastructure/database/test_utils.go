@@ -6,6 +6,7 @@ import (
 
 	"github.com/assimoes/beautix/configs"
 	"github.com/rs/zerolog/log"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
@@ -184,4 +185,51 @@ func TableExists(db *DB, tableName string) (bool, error) {
 	
 	err := db.Raw(query, tableName).Scan(&exists).Error
 	return exists, err
+}
+
+// NewTestDBWithTransaction creates a test database connection and runs the test
+// within a transaction that is rolled back after completion. This ensures 
+// true test isolation and prevents interference between tests.
+func NewTestDBWithTransaction(t *testing.T, testFn func(db *gorm.DB)) {
+	// Load configuration
+	config, err := configs.LoadConfig()
+	require.NoError(t, err, "Failed to load config")
+
+	// Update config to use the test database
+	config.Database.DBName = "beautix_test"
+	config.Database.URL = fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		config.Database.User,
+		config.Database.Password,
+		config.Database.Host,
+		config.Database.Port,
+		config.Database.DBName,
+		config.Database.SSLMode,
+	)
+
+	// Connect to the test database WITHOUT global cleanup
+	db, err := NewConnection(config)
+	require.NoError(t, err, "Failed to connect to test database")
+	
+	// Ensure database connection is closed after test
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close test database connection")
+		}
+	})
+
+	// Run basic schema setup (only extensions, no cleanup)
+	err = setupTestSchema(db)
+	require.NoError(t, err, "Failed to setup test schema")
+	
+	// Start a transaction
+	tx := db.Begin()
+	
+	// Ensure transaction is always rolled back
+	t.Cleanup(func() {
+		tx.Rollback()
+	})
+	
+	// Run the test function with the transaction
+	testFn(tx)
 }

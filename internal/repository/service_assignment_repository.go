@@ -4,32 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/assimoes/beautix/internal/domain"
-	"github.com/assimoes/beautix/internal/infrastructure/database"
 	"github.com/assimoes/beautix/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// GormServiceAssignmentRepository implements the domain.ServiceAssignmentRepository interface using GORM
-type GormServiceAssignmentRepository struct {
-	db *database.DB
+// ServiceAssignmentRepository implements the domain.ServiceAssignmentRepository interface using GORM
+type ServiceAssignmentRepository struct {
+	*BaseRepository
 }
 
-// NewServiceAssignmentRepository creates a new instance of GormServiceAssignmentRepository
-func NewServiceAssignmentRepository(db *database.DB) domain.ServiceAssignmentRepository {
-	return &GormServiceAssignmentRepository{
-		db: db,
+// NewServiceAssignmentRepository creates a new instance of ServiceAssignmentRepository
+func NewServiceAssignmentRepository(db DBAdapter) domain.ServiceAssignmentRepository {
+	return &ServiceAssignmentRepository{
+		BaseRepository: NewBaseRepository(db),
 	}
 }
 
 // Create creates a new service assignment
-func (r *GormServiceAssignmentRepository) Create(ctx context.Context, assignment *domain.ServiceAssignment) error {
+func (r *ServiceAssignmentRepository) Create(ctx context.Context, assignment *domain.ServiceAssignment) error {
 	assignmentModel := mapAssignmentDomainToModel(assignment)
 	
-	if err := r.db.WithContext(ctx).Create(&assignmentModel).Error; err != nil {
+	if err := r.CreateWithAudit(ctx, &assignmentModel, &assignment.CreatedBy); err != nil {
 		return fmt.Errorf("failed to create service assignment: %w", err)
 	}
 	
@@ -41,29 +39,26 @@ func (r *GormServiceAssignmentRepository) Create(ctx context.Context, assignment
 }
 
 // GetByID retrieves a service assignment by ID
-func (r *GormServiceAssignmentRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.ServiceAssignment, error) {
+func (r *ServiceAssignmentRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.ServiceAssignment, error) {
 	var assignmentModel models.ServiceAssignment
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		First(&assignmentModel, "id = ?", id).Error
 	
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("service assignment not found with ID %s", id)
-		}
-		return nil, fmt.Errorf("failed to get service assignment by ID: %w", err)
+		return nil, r.HandleNotFound(err, "service assignment", id)
 	}
 	
 	return mapAssignmentModelToDomain(&assignmentModel), nil
 }
 
 // GetByStaffAndService retrieves a service assignment by staff ID and service ID
-func (r *GormServiceAssignmentRepository) GetByStaffAndService(ctx context.Context, staffID, serviceID uuid.UUID) (*domain.ServiceAssignment, error) {
+func (r *ServiceAssignmentRepository) GetByStaffAndService(ctx context.Context, staffID, serviceID uuid.UUID) (*domain.ServiceAssignment, error) {
 	var assignmentModel models.ServiceAssignment
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("staff_id = ? AND service_id = ?", staffID, serviceID).
@@ -80,10 +75,10 @@ func (r *GormServiceAssignmentRepository) GetByStaffAndService(ctx context.Conte
 }
 
 // GetByStaff retrieves service assignments by staff ID
-func (r *GormServiceAssignmentRepository) GetByStaff(ctx context.Context, staffID uuid.UUID) ([]*domain.ServiceAssignment, error) {
+func (r *ServiceAssignmentRepository) GetByStaff(ctx context.Context, staffID uuid.UUID) ([]*domain.ServiceAssignment, error) {
 	var assignmentModels []models.ServiceAssignment
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("staff_id = ?", staffID).
@@ -97,10 +92,10 @@ func (r *GormServiceAssignmentRepository) GetByStaff(ctx context.Context, staffI
 }
 
 // GetByService retrieves service assignments by service ID
-func (r *GormServiceAssignmentRepository) GetByService(ctx context.Context, serviceID uuid.UUID) ([]*domain.ServiceAssignment, error) {
+func (r *ServiceAssignmentRepository) GetByService(ctx context.Context, serviceID uuid.UUID) ([]*domain.ServiceAssignment, error) {
 	var assignmentModels []models.ServiceAssignment
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("service_id = ?", serviceID).
@@ -114,29 +109,23 @@ func (r *GormServiceAssignmentRepository) GetByService(ctx context.Context, serv
 }
 
 // Update updates a service assignment
-func (r *GormServiceAssignmentRepository) Update(ctx context.Context, id uuid.UUID, input *domain.UpdateServiceAssignmentInput, updatedBy uuid.UUID) error {
+func (r *ServiceAssignmentRepository) Update(ctx context.Context, id uuid.UUID, input *domain.UpdateServiceAssignmentInput, updatedBy uuid.UUID) error {
 	// First find the assignment to ensure it exists
 	var assignmentModel models.ServiceAssignment
-	err := r.db.WithContext(ctx).First(&assignmentModel, "id = ?", id).Error
+	err := r.WithContext(ctx).First(&assignmentModel, "id = ?", id).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("service assignment not found with ID %s", id)
-		}
-		return fmt.Errorf("failed to find service assignment for update: %w", err)
+		return r.HandleNotFound(err, "service assignment", id)
 	}
 	
 	// Apply updates from the input
-	updates := map[string]interface{}{
-		"updated_at": time.Now(),
-		"updated_by": updatedBy,
-	}
+	updates := map[string]interface{}{}
 	
 	if input.IsActive != nil {
 		updates["is_active"] = *input.IsActive
 	}
 	
-	// Perform the update
-	err = r.db.WithContext(ctx).Model(&assignmentModel).Updates(updates).Error
+	// Perform the update with audit
+	err = r.UpdateWithAudit(ctx, &assignmentModel, updates, updatedBy)
 	if err != nil {
 		return fmt.Errorf("failed to update service assignment: %w", err)
 	}
@@ -145,29 +134,16 @@ func (r *GormServiceAssignmentRepository) Update(ctx context.Context, id uuid.UU
 }
 
 // Delete soft deletes a service assignment
-func (r *GormServiceAssignmentRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
+func (r *ServiceAssignmentRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	// First find the assignment to ensure it exists
 	var assignmentModel models.ServiceAssignment
-	err := r.db.WithContext(ctx).First(&assignmentModel, "id = ?", id).Error
+	err := r.WithContext(ctx).First(&assignmentModel, "id = ?", id).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("service assignment not found with ID %s", id)
-		}
-		return fmt.Errorf("failed to find service assignment for deletion: %w", err)
+		return r.HandleNotFound(err, "service assignment", id)
 	}
 	
-	// Set deleted by
-	updates := map[string]interface{}{
-		"deleted_by": deletedBy,
-	}
-	
-	err = r.db.WithContext(ctx).Model(&assignmentModel).Updates(updates).Error
-	if err != nil {
-		return fmt.Errorf("failed to update service assignment before deletion: %w", err)
-	}
-	
-	// Perform soft delete
-	err = r.db.WithContext(ctx).Delete(&assignmentModel).Error
+	// Perform soft delete with audit
+	err = r.SoftDeleteWithAudit(ctx, &assignmentModel, deletedBy)
 	if err != nil {
 		return fmt.Errorf("failed to delete service assignment: %w", err)
 	}
@@ -176,13 +152,13 @@ func (r *GormServiceAssignmentRepository) Delete(ctx context.Context, id uuid.UU
 }
 
 // ListByBusiness retrieves a paginated list of service assignments by business ID
-func (r *GormServiceAssignmentRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*domain.ServiceAssignment, error) {
+func (r *ServiceAssignmentRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*domain.ServiceAssignment, error) {
 	var assignmentModels []models.ServiceAssignment
 	
 	// Apply pagination
-	offset := (page - 1) * pageSize
+	offset := r.CalculateOffset(page, pageSize)
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("business_id = ?", businessID).
@@ -199,10 +175,10 @@ func (r *GormServiceAssignmentRepository) ListByBusiness(ctx context.Context, bu
 }
 
 // CountByBusiness counts service assignments by business ID
-func (r *GormServiceAssignmentRepository) CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error) {
+func (r *ServiceAssignmentRepository) CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error) {
 	var count int64
 	
-	err := r.db.WithContext(ctx).Model(&models.ServiceAssignment{}).Where("business_id = ?", businessID).Count(&count).Error
+	err := r.WithContext(ctx).Model(&models.ServiceAssignment{}).Where("business_id = ?", businessID).Count(&count).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to count service assignments by business: %w", err)
 	}
@@ -292,7 +268,7 @@ func mapAssignmentModelToDomain(a *models.ServiceAssignment) *domain.ServiceAssi
 	
 	// Map related entities if loaded
 	if a.Staff.ID != uuid.Nil {
-		assignment.Staff = mapModelToDomain(&a.Staff)
+		assignment.Staff = mapStaffModelToDomain(&a.Staff)
 	}
 	
 	return assignment

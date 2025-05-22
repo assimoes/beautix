@@ -3,34 +3,32 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/assimoes/beautix/internal/domain"
-	"github.com/assimoes/beautix/internal/infrastructure/database"
 	"github.com/assimoes/beautix/internal/models"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
-// GormStaffRepository implements the domain.StaffRepository interface using GORM
-type GormStaffRepository struct {
-	db *database.DB
+// StaffRepository implements the domain.StaffRepository interface using GORM
+type StaffRepository struct {
+	*BaseRepository
 }
 
-// NewStaffRepository creates a new instance of GormStaffRepository
-func NewStaffRepository(db *database.DB) domain.StaffRepository {
-	return &GormStaffRepository{
-		db: db,
+// NewStaffRepository creates a new instance of StaffRepository
+func NewStaffRepository(db DBAdapter) domain.StaffRepository {
+	return &StaffRepository{
+		BaseRepository: NewBaseRepository(db),
 	}
 }
 
 // Create creates a new staff member
-func (r *GormStaffRepository) Create(ctx context.Context, staff *domain.Staff) error {
-	staffModel := mapDomainToModel(staff)
+func (r *StaffRepository) Create(ctx context.Context, staff *domain.Staff) error {
+	staffModel := mapStaffDomainToModel(staff)
 	
-	if err := r.db.WithContext(ctx).Create(&staffModel).Error; err != nil {
+	// Option 1: Use CreateWithAudit helper method
+	// This automatically sets CreatedBy and CreatedAt fields
+	if err := r.CreateWithAudit(ctx, &staffModel, &staff.CreatedBy); err != nil {
 		return fmt.Errorf("failed to create staff: %w", err)
 	}
 	
@@ -42,29 +40,26 @@ func (r *GormStaffRepository) Create(ctx context.Context, staff *domain.Staff) e
 }
 
 // GetByID retrieves a staff member by ID
-func (r *GormStaffRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Staff, error) {
+func (r *StaffRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Staff, error) {
 	var staffModel models.Staff
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
 		First(&staffModel, "id = ?", id).Error
 	
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("staff not found with ID %s", id)
-		}
-		return nil, fmt.Errorf("failed to get staff by ID: %w", err)
+		return nil, r.HandleNotFound(err, "staff", id)
 	}
 	
-	return mapModelToDomain(&staffModel), nil
+	return mapStaffModelToDomain(&staffModel), nil
 }
 
 // GetByUserID retrieves staff members by user ID
-func (r *GormStaffRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Staff, error) {
+func (r *StaffRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Staff, error) {
 	var staffModels []models.Staff
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
 		Where("user_id = ?", userID).
@@ -74,15 +69,14 @@ func (r *GormStaffRepository) GetByUserID(ctx context.Context, userID uuid.UUID)
 		return nil, fmt.Errorf("failed to get staff by user ID: %w", err)
 	}
 	
-	// Map staff models to domain entities
-	return mapModelsToDomainSlice(staffModels), nil
+	return mapStaffModelsToDomainSlice(staffModels), nil
 }
 
 // GetByBusinessID retrieves staff members by business ID
-func (r *GormStaffRepository) GetByBusinessID(ctx context.Context, businessID uuid.UUID) ([]*domain.Staff, error) {
+func (r *StaffRepository) GetByBusinessID(ctx context.Context, businessID uuid.UUID) ([]*domain.Staff, error) {
 	var staffModels []models.Staff
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
 		Where("business_id = ?", businessID).
@@ -92,27 +86,22 @@ func (r *GormStaffRepository) GetByBusinessID(ctx context.Context, businessID uu
 		return nil, fmt.Errorf("failed to get staff by business ID: %w", err)
 	}
 	
-	// Map staff models to domain entities
-	return mapModelsToDomainSlice(staffModels), nil
+	return mapStaffModelsToDomainSlice(staffModels), nil
 }
 
 // Update updates a staff member
-func (r *GormStaffRepository) Update(ctx context.Context, id uuid.UUID, input *domain.UpdateStaffInput, updatedBy uuid.UUID) error {
+func (r *StaffRepository) Update(ctx context.Context, id uuid.UUID, input *domain.UpdateStaffInput, updatedBy uuid.UUID) error {
 	// First find the staff to ensure it exists
 	var staffModel models.Staff
-	err := r.db.WithContext(ctx).First(&staffModel, "id = ?", id).Error
+	err := r.WithContext(ctx).First(&staffModel, "id = ?", id).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("staff not found with ID %s", id)
-		}
-		return fmt.Errorf("failed to find staff for update: %w", err)
+		return r.HandleNotFound(err, "staff", id)
 	}
 	
 	// Apply updates from the input
-	updates := map[string]interface{}{
-		"updated_at": time.Now(),
-		"updated_by": updatedBy,
-	}
+	// Option 2: Manual audit field handling in updates map
+	// The UpdateWithAudit method will automatically add updated_by and updated_at
+	updates := map[string]interface{}{}
 	
 	if input.Position != nil {
 		updates["position"] = *input.Position
@@ -154,8 +143,9 @@ func (r *GormStaffRepository) Update(ctx context.Context, id uuid.UUID, input *d
 		updates["commission_rate"] = *input.CommissionRate
 	}
 	
-	// Perform the update
-	err = r.db.WithContext(ctx).Model(&staffModel).Updates(updates).Error
+	// Option 2: Use UpdateWithAudit helper method
+	// This automatically adds updated_by and updated_at to the updates map
+	err = r.UpdateWithAudit(ctx, &staffModel, updates, updatedBy)
 	if err != nil {
 		return fmt.Errorf("failed to update staff: %w", err)
 	}
@@ -164,29 +154,17 @@ func (r *GormStaffRepository) Update(ctx context.Context, id uuid.UUID, input *d
 }
 
 // Delete soft deletes a staff member
-func (r *GormStaffRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
+func (r *StaffRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	// First find the staff to ensure it exists
 	var staffModel models.Staff
-	err := r.db.WithContext(ctx).First(&staffModel, "id = ?", id).Error
+	err := r.WithContext(ctx).First(&staffModel, "id = ?", id).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("staff not found with ID %s", id)
-		}
-		return fmt.Errorf("failed to find staff for deletion: %w", err)
+		return r.HandleNotFound(err, "staff", id)
 	}
 	
-	// Set deleted by
-	updates := map[string]interface{}{
-		"deleted_by": deletedBy,
-	}
-	
-	err = r.db.WithContext(ctx).Model(&staffModel).Updates(updates).Error
-	if err != nil {
-		return fmt.Errorf("failed to update staff before deletion: %w", err)
-	}
-	
-	// Perform soft delete
-	err = r.db.WithContext(ctx).Delete(&staffModel).Error
+	// Option 3: Use SoftDeleteWithAudit helper method
+	// This automatically sets deleted_by and deleted_at fields
+	err = r.SoftDeleteWithAudit(ctx, &staffModel, deletedBy)
 	if err != nil {
 		return fmt.Errorf("failed to delete staff: %w", err)
 	}
@@ -195,13 +173,12 @@ func (r *GormStaffRepository) Delete(ctx context.Context, id uuid.UUID, deletedB
 }
 
 // List retrieves a paginated list of staff members
-func (r *GormStaffRepository) List(ctx context.Context, page, pageSize int) ([]*domain.Staff, error) {
+func (r *StaffRepository) List(ctx context.Context, page, pageSize int) ([]*domain.Staff, error) {
 	var staffModels []models.Staff
 	
-	// Apply pagination
-	offset := (page - 1) * pageSize
+	offset := r.CalculateOffset(page, pageSize)
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
 		Offset(offset).
@@ -213,17 +190,16 @@ func (r *GormStaffRepository) List(ctx context.Context, page, pageSize int) ([]*
 		return nil, fmt.Errorf("failed to list staff: %w", err)
 	}
 	
-	return mapModelsToDomainSlice(staffModels), nil
+	return mapStaffModelsToDomainSlice(staffModels), nil
 }
 
 // ListByBusiness retrieves a paginated list of staff members by business ID
-func (r *GormStaffRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*domain.Staff, error) {
+func (r *StaffRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*domain.Staff, error) {
 	var staffModels []models.Staff
 	
-	// Apply pagination
-	offset := (page - 1) * pageSize
+	offset := r.CalculateOffset(page, pageSize)
 	
-	err := r.db.WithContext(ctx).
+	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
 		Where("business_id = ?", businessID).
@@ -236,18 +212,17 @@ func (r *GormStaffRepository) ListByBusiness(ctx context.Context, businessID uui
 		return nil, fmt.Errorf("failed to list staff by business: %w", err)
 	}
 	
-	return mapModelsToDomainSlice(staffModels), nil
+	return mapStaffModelsToDomainSlice(staffModels), nil
 }
 
 // Search searches for staff members by query within a business
-func (r *GormStaffRepository) Search(ctx context.Context, businessID uuid.UUID, query string, page, pageSize int) ([]*domain.Staff, error) {
+func (r *StaffRepository) Search(ctx context.Context, businessID uuid.UUID, query string, page, pageSize int) ([]*domain.Staff, error) {
 	var staffModels []models.Staff
 	
-	// Apply pagination
-	offset := (page - 1) * pageSize
+	offset := r.CalculateOffset(page, pageSize)
 	
 	// Build the search query
-	searchQuery := r.db.WithContext(ctx).
+	searchQuery := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
 		Where("business_id = ?", businessID).
@@ -267,14 +242,14 @@ func (r *GormStaffRepository) Search(ctx context.Context, businessID uuid.UUID, 
 		return nil, fmt.Errorf("failed to search staff: %w", err)
 	}
 	
-	return mapModelsToDomainSlice(staffModels), nil
+	return mapStaffModelsToDomainSlice(staffModels), nil
 }
 
 // Count counts all staff members
-func (r *GormStaffRepository) Count(ctx context.Context) (int64, error) {
+func (r *StaffRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	
-	err := r.db.WithContext(ctx).Model(&models.Staff{}).Count(&count).Error
+	err := r.WithContext(ctx).Model(&models.Staff{}).Count(&count).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to count staff: %w", err)
 	}
@@ -283,10 +258,10 @@ func (r *GormStaffRepository) Count(ctx context.Context) (int64, error) {
 }
 
 // CountByBusiness counts staff members by business ID
-func (r *GormStaffRepository) CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error) {
+func (r *StaffRepository) CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error) {
 	var count int64
 	
-	err := r.db.WithContext(ctx).Model(&models.Staff{}).Where("business_id = ?", businessID).Count(&count).Error
+	err := r.WithContext(ctx).Model(&models.Staff{}).Where("business_id = ?", businessID).Count(&count).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to count staff by business: %w", err)
 	}
@@ -296,8 +271,8 @@ func (r *GormStaffRepository) CountByBusiness(ctx context.Context, businessID uu
 
 // Helper functions to map between domain entities and models
 
-// mapDomainToModel converts a domain Staff entity to a model Staff
-func mapDomainToModel(s *domain.Staff) *models.Staff {
+// mapStaffDomainToModel converts a domain Staff entity to a model Staff
+func mapStaffDomainToModel(s *domain.Staff) *models.Staff {
 	if s == nil {
 		return nil
 	}
@@ -345,20 +320,15 @@ func mapDomainToModel(s *domain.Staff) *models.Staff {
 		staffModel.UpdatedBy = s.UpdatedBy
 	}
 	
-	if s.DeletedAt != nil {
-		deletedAt := gorm.DeletedAt{Time: *s.DeletedAt, Valid: true}
-		staffModel.DeletedAt = deletedAt
-	}
-	
-	if s.DeletedBy != nil {
-		staffModel.DeletedBy = s.DeletedBy
+	if s.UpdatedBy != nil {
+		staffModel.UpdatedBy = s.UpdatedBy
 	}
 	
 	return staffModel
 }
 
-// mapModelToDomain converts a model Staff to a domain Staff entity
-func mapModelToDomain(s *models.Staff) *domain.Staff {
+// mapStaffModelToDomain converts a model Staff to a domain Staff entity
+func mapStaffModelToDomain(s *models.Staff) *domain.Staff {
 	if s == nil {
 		return nil
 	}
@@ -421,47 +391,13 @@ func mapModelToDomain(s *models.Staff) *domain.Staff {
 	return staff
 }
 
-// mapModelsToDomainSlice converts a slice of model Staff to a slice of domain Staff entities
-func mapModelsToDomainSlice(staffModels []models.Staff) []*domain.Staff {
+// mapStaffModelsToDomainSlice converts a slice of model Staff to a slice of domain Staff entities
+func mapStaffModelsToDomainSlice(staffModels []models.Staff) []*domain.Staff {
 	result := make([]*domain.Staff, len(staffModels))
 	for i, model := range staffModels {
 		modelCopy := model // create a copy to avoid pointer issues
-		result[i] = mapModelToDomain(&modelCopy)
+		result[i] = mapStaffModelToDomain(&modelCopy)
 	}
 	return result
 }
 
-// mapUserModelToDomain converts a model User to a domain User entity
-func mapUserModelToDomain(u *models.User) *domain.User {
-	if u == nil || u.ID == uuid.Nil {
-		return nil
-	}
-	
-	return &domain.User{
-		UserID:    u.ID,
-		Email:     u.Email,
-		FirstName: u.FirstName,
-		LastName:  u.LastName,
-		Phone:     u.Phone,
-		IsActive:  u.IsActive,
-		Role:      string(u.Role),
-	}
-}
-
-// mapBusinessModelToDomain converts a model Business to a domain Business entity
-func mapBusinessModelToDomain(b *models.Business) *domain.Business {
-	if b == nil || b.ID == uuid.Nil {
-		return nil
-	}
-	
-	return &domain.Business{
-		BusinessID:   b.ID,
-		OwnerID:      b.UserID,
-		BusinessName: b.Name,
-		City:         b.City,
-		Country:      b.Country,
-		Phone:        b.Phone,
-		Email:        b.Email,
-		IsActive:     b.IsActive,
-	}
-}

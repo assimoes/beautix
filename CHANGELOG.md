@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repository implementations using GORM for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance
 - Integration tests for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance repositories
 - Transaction-based testing framework for truly idempotent integration tests
+- Repository implementations for Client, Service, ServiceCategory, and Appointment with transaction-based testing
+- Extended test helpers to support new repository implementations
+- True test isolation for model tests using transaction-based approach
 
 ### Changed
 - Restructured code to follow Clean Architecture principles

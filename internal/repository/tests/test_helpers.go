@@ -306,3 +306,128 @@ func createTestStaffPerformanceWithPeriod(
 	
 	return performance
 }
+
+// createTestClient creates a test client in the database
+func createTestClient(t *testing.T, db *database.DB, businessID uuid.UUID, userID *uuid.UUID, createdByID *uuid.UUID) *models.Client {
+	clientEmail := uuid.New().String() + "@example.com" // Ensure unique email
+	client := &models.Client{
+		BusinessID:       businessID,
+		UserID:           userID,
+		FirstName:        "Test",
+		LastName:         "Client",
+		Email:            clientEmail,
+		Phone:            "+1987654321",
+		Notes:            "Test client notes",
+		ProfileImageURL:  "http://example.com/client.jpg",
+		IsActive:         true,
+		AcceptsMarketing: true,
+	}
+	
+	// Set created_by if provided
+	if createdByID != nil {
+		client.CreatedBy = createdByID
+	}
+	
+	err := db.Create(client).Error
+	require.NoError(t, err, "Failed to create test client")
+	
+	return client
+}
+
+// createTestClientTx creates a test client in the database within a transaction
+func createTestClientTx(t *testing.T, tx *gorm.DB, businessID uuid.UUID, userID *uuid.UUID, createdByID *uuid.UUID) *models.Client {
+	clientEmail := uuid.New().String() + "@example.com" // Ensure unique email
+	client := &models.Client{
+		BusinessID:       businessID,
+		UserID:           userID,
+		FirstName:        "Test",
+		LastName:         "Client",
+		Email:            clientEmail,
+		Phone:            "+1987654321",
+		Notes:            "Test client notes",
+		ProfileImageURL:  "http://example.com/client.jpg",
+		IsActive:         true,
+		AcceptsMarketing: true,
+	}
+	
+	// Set created_by if provided
+	if createdByID != nil {
+		client.CreatedBy = createdByID
+	}
+	
+	err := tx.Create(client).Error
+	require.NoError(t, err, "Failed to create test client")
+	
+	return client
+}
+
+// createTestServiceCategoryTx creates a test service category in the database within a transaction
+func createTestServiceCategoryTx(t *testing.T, tx *gorm.DB, createdByID *uuid.UUID) *models.ServiceCategory {
+	category := &models.ServiceCategory{
+		Name:        "Test Category " + uuid.New().String()[0:8],
+		Description: "Test category description",
+	}
+	
+	// Set created_by if provided
+	if createdByID != nil {
+		category.CreatedBy = createdByID
+	}
+	
+	err := tx.Create(category).Error
+	require.NoError(t, err, "Failed to create test service category")
+	
+	return category
+}
+
+// createTestServiceTx creates a test service in the database within a transaction
+func createTestServiceTx(t *testing.T, tx *gorm.DB, businessID uuid.UUID, categoryID *uuid.UUID, createdByID *uuid.UUID) *models.Service {
+	service := &models.Service{
+		BusinessID:  businessID,
+		CategoryID:  categoryID,
+		Name:        "Test Service " + uuid.New().String()[0:8],
+		Description: "Test service description",
+		Duration:    60, // 60 minutes
+		Price:       100.0,
+		IsActive:    true,
+	}
+	
+	// Set created_by if provided
+	if createdByID != nil {
+		service.CreatedBy = createdByID
+	}
+	
+	err := tx.Create(service).Error
+	require.NoError(t, err, "Failed to create test service")
+	
+	return service
+}
+
+// createTestAppointmentTx creates a test appointment in the database within a transaction
+func createTestAppointmentTx(t *testing.T, tx *gorm.DB, businessID, clientID uuid.UUID, startTime time.Time, createdByID *uuid.UUID) *models.Appointment {
+	// Calculate end time (1 hour after start time)
+	endTime := startTime.Add(time.Hour)
+	
+	appointment := &models.Appointment{
+		BusinessID:    businessID,
+		ClientID:      clientID,
+		StartTime:     startTime,
+		EndTime:       endTime,
+		Status:        models.AppointmentStatusConfirmed,
+		TotalDuration: 60, // 60 minutes
+		TotalPrice:    100.0,
+		FinalPrice:    100.0,
+		Notes:         "Test appointment",
+		PaymentStatus: models.PaymentStatusPending,
+		BookingSource: models.BookingSourceInPerson,
+	}
+	
+	// Set created_by if provided
+	if createdByID != nil {
+		appointment.CreatedBy = createdByID
+	}
+	
+	err := tx.Create(appointment).Error
+	require.NoError(t, err, "Failed to create test appointment")
+	
+	return appointment
+}
