@@ -55,7 +55,7 @@ func main() {
 
 	// For now, we're focusing on database setup and will implement HTTP server later
 	log.Info().Msg("Database setup complete. HTTP server implementation pending.")
-	
+
 	// Keep the application running until interrupted
 	select {}
 }

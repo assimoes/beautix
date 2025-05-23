@@ -12,13 +12,12 @@ import (
 )
 
 func TestBusinessModel(t *testing.T) {
-	// Connect to the test database
-	testDB, err := database.NewTestDB(t)
+	// Connect to the test database using simple approach
+	testDB, err := database.NewSimpleTestDB(t)
 	require.NoError(t, err, "Failed to connect to test database")
 
-	// Auto-migrate the models
-	err = testDB.AutoMigrate(&models.User{}, &models.Business{}, &models.BusinessLocation{})
-	require.NoError(t, err, "Failed to migrate models")
+	// Clean up all tables comprehensively to avoid foreign key issues
+	database.CleanupAllTables(t, testDB.DB)
 
 	// Create a user first (since business requires a user)
 	userID := uuid.New()
@@ -26,17 +25,17 @@ func TestBusinessModel(t *testing.T) {
 		BaseModel: models.BaseModel{
 			ID: userID,
 		},
-		ClerkID:   "clerk_business_test",
+		ClerkID:   "clerk_business_" + userID.String()[:8], // Unique ClerkID
 		Email:     "business_test@example.com",
 		FirstName: "Business",
 		LastName:  "Owner",
 		Phone:     "+1234567890",
-		Role:      models.UserRoleProvider,
+		Role:      models.UserRoleOwner,
 		IsActive:  true,
 	}
 
 	// Save the user
-	err = testDB.Create(&user).Error
+	err = testDB.DB.Create(&user).Error
 	assert.NoError(t, err, "Failed to create user")
 
 	// Create business
@@ -47,8 +46,8 @@ func TestBusinessModel(t *testing.T) {
 		},
 		UserID:           userID,
 		Name:             "beauty-salon-1",
+		BusinessType:     "salon",
 		DisplayName:      "Beauty Salon Example",
-		Description:      "A premium beauty salon offering a variety of services",
 		Address:          "123 Main St",
 		City:             "Lisbon",
 		Country:          "Portugal",
@@ -63,10 +62,10 @@ func TestBusinessModel(t *testing.T) {
 			Facebook:  "beautysalon",
 		},
 		Settings: models.BusinessSettings{
-			AllowOnlineBooking:       true,
-			RequireDeposit:           true,
-			DepositAmount:            15.00,
-			CancellationPolicyHours:  24,
+			AllowOnlineBooking:        true,
+			RequireDeposit:            true,
+			DepositAmount:             15.00,
+			CancellationPolicyHours:   24,
 			CancellationFeePercentage: 50,
 			WorkingHours: models.WorkingHours{
 				Monday: models.DayHours{
@@ -85,12 +84,15 @@ func TestBusinessModel(t *testing.T) {
 	}
 
 	// Save the business
-	err = testDB.Create(&business).Error
+	err = testDB.DB.Create(&business).Error
+	if err != nil {
+		t.Logf("Business creation error: %v", err)
+	}
 	assert.NoError(t, err, "Failed to create business")
 
 	// Verify business was created with ID
 	var savedBusiness models.Business
-	err = testDB.First(&savedBusiness, "id = ?", businessID).Error
+	err = testDB.DB.First(&savedBusiness, "id = ?", businessID).Error
 	assert.NoError(t, err, "Failed to find business")
 	assert.Equal(t, businessID, savedBusiness.ID)
 	assert.Equal(t, "Beauty Salon Example", savedBusiness.DisplayName)
@@ -102,7 +104,7 @@ func TestBusinessModel(t *testing.T) {
 	assert.Equal(t, 24, savedBusiness.Settings.CancellationPolicyHours)
 
 	// Test loaded relationship
-	err = testDB.Preload("User").First(&savedBusiness, "id = ?", businessID).Error
+	err = testDB.DB.Preload("User").First(&savedBusiness, "id = ?", businessID).Error
 	assert.NoError(t, err, "Failed to find business with user")
 	assert.Equal(t, userID, savedBusiness.User.ID)
 	assert.Equal(t, "Business", savedBusiness.User.FirstName)
@@ -134,14 +136,27 @@ func TestBusinessModel(t *testing.T) {
 	}
 
 	// Save the location
-	err = testDB.Create(&location).Error
+	err = testDB.DB.Create(&location).Error
 	assert.NoError(t, err, "Failed to create business location")
 
 	// Verify location was created and correctly associated with business
 	var locations []models.BusinessLocation
-	err = testDB.Preload("Business").Where("business_id = ?", businessID).Find(&locations).Error
+	err = testDB.DB.Preload("Business").Where("business_id = ?", businessID).Find(&locations).Error
 	assert.NoError(t, err, "Failed to find business locations")
-	assert.Len(t, locations, 1, "Should have one business location")
+	if len(locations) == 0 {
+		t.Logf("No locations found for businessID: %v", businessID)
+		// Let's also check if the business exists
+		var checkBusiness models.Business
+		err = testDB.DB.First(&checkBusiness, "id = ?", businessID).Error
+		if err != nil {
+			t.Logf("Business does not exist: %v", err)
+		} else {
+			t.Logf("Business exists: %v", checkBusiness.Name)
+		}
+	}
+	if !assert.Len(t, locations, 1, "Should have one business location") {
+		return // Exit test if length assertion fails
+	}
 	assert.Equal(t, "Downtown Branch", locations[0].Name)
 	assert.Equal(t, businessID, locations[0].Business.ID)
 
@@ -167,25 +182,25 @@ func TestBusinessModel(t *testing.T) {
 	}
 
 	// Save the second location
-	err = testDB.Create(&location2).Error
+	err = testDB.DB.Create(&location2).Error
 	assert.NoError(t, err, "Failed to create second business location")
 
 	// Verify that we now have two locations
-	err = testDB.Preload("Business").Where("business_id = ?", businessID).Find(&locations).Error
+	err = testDB.DB.Preload("Business").Where("business_id = ?", businessID).Find(&locations).Error
 	assert.NoError(t, err, "Failed to find business locations")
 	assert.Len(t, locations, 2, "Should have two business locations")
 
 	// Test soft delete
-	err = testDB.Delete(&business).Error
+	err = testDB.DB.Delete(&business).Error
 	assert.NoError(t, err, "Failed to soft delete business")
 
 	// Verify business is soft deleted
 	var deletedBusiness models.Business
-	err = testDB.Unscoped().First(&deletedBusiness, "id = ?", businessID).Error
+	err = testDB.DB.Unscoped().First(&deletedBusiness, "id = ?", businessID).Error
 	assert.NoError(t, err, "Failed to find soft deleted business")
 	assert.False(t, deletedBusiness.DeletedAt.Time.IsZero(), "DeletedAt should be set")
 
 	// Verify we can't find the business with normal queries
-	err = testDB.First(&models.Business{}, "id = ?", businessID).Error
+	err = testDB.DB.First(&models.Business{}, "id = ?", businessID).Error
 	assert.Error(t, err, "Should not find soft deleted business")
 }

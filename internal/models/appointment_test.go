@@ -11,249 +11,202 @@ import (
 
 func TestAppointmentModel(t *testing.T) {
 	// Test Appointment Struct
+	businessID := uuid.New()
+	clientID := uuid.New()
+	staffID := uuid.New()
+	serviceID := uuid.New()
+	estimatedPrice := 100.00
+	actualPrice := 110.00
+
 	appointment := Appointment{
-		BusinessID:    uuid.New(),
-		ClientID:      uuid.New(),
-		StartTime:     time.Now(),
-		EndTime:       time.Now().Add(1 * time.Hour),
-		Status:        AppointmentStatusConfirmed,
-		TotalDuration: 60,
-		TotalPrice:    100.00,
-		Discount:      10.00,
-		Tax:           20.00,
-		FinalPrice:    110.00,
-		PaymentStatus: PaymentStatusPending,
-		BookingSource: BookingSourceWebsite,
-		Notifications: NotificationSettings{
-			ClientReminded: true,
-			ConfirmationSent: true,
-		},
+		BusinessID:         businessID,
+		ClientID:           clientID,
+		StaffID:            staffID,
+		ServiceID:          serviceID,
+		StartTime:          time.Now(),
+		EndTime:            time.Now().Add(1 * time.Hour),
+		Status:             AppointmentStatusConfirmed,
+		Notes:              "Test appointment notes",
+		EstimatedPrice:     &estimatedPrice,
+		ActualPrice:        &actualPrice,
+		PaymentStatus:      PaymentStatusPending,
+		ClientConfirmed:    true,
+		StaffConfirmed:     false,
+		CancellationReason: "",
 	}
 
 	assert.Equal(t, AppointmentStatusConfirmed, appointment.Status)
 	assert.Equal(t, PaymentStatusPending, appointment.PaymentStatus)
-	assert.Equal(t, BookingSourceWebsite, appointment.BookingSource)
-	assert.Equal(t, 60, appointment.TotalDuration)
-	assert.Equal(t, 110.00, appointment.FinalPrice)
-	assert.True(t, appointment.Notifications.ClientReminded)
+	assert.Equal(t, businessID, appointment.BusinessID)
+	assert.Equal(t, clientID, appointment.ClientID)
+	assert.Equal(t, staffID, appointment.StaffID)
+	assert.Equal(t, serviceID, appointment.ServiceID)
+	assert.Equal(t, 100.00, *appointment.EstimatedPrice)
+	assert.Equal(t, 110.00, *appointment.ActualPrice)
+	assert.True(t, appointment.ClientConfirmed)
+	assert.False(t, appointment.StaffConfirmed)
+	assert.Equal(t, 60, appointment.Duration()) // 1 hour = 60 minutes
 }
 
-func TestAppointmentService(t *testing.T) {
-	// Test AppointmentService struct
-	selectedOptions := AppointmentServiceOptions{
-		{
-			OptionID:        uuid.New(),
-			OptionName:      "Color",
-			ChoiceID:        uuid.New(),
-			ChoiceName:      "Red",
-			PriceAdjustment: 15.00,
-			TimeAdjustment:  10,
-		},
-		{
-			OptionID:        uuid.New(),
-			OptionName:      "Treatment",
-			ChoiceID:        uuid.New(),
-			ChoiceName:      "Deep Conditioning",
-			PriceAdjustment: 20.00,
-			TimeAdjustment:  15,
-		},
+func TestAppointmentStatus(t *testing.T) {
+	tests := []struct {
+		status   AppointmentStatus
+		expected string
+	}{
+		{AppointmentStatusScheduled, "scheduled"},
+		{AppointmentStatusConfirmed, "confirmed"},
+		{AppointmentStatusInProgress, "in_progress"},
+		{AppointmentStatusCompleted, "completed"},
+		{AppointmentStatusCancelled, "cancelled"},
+		{AppointmentStatusNoShow, "no_show"},
 	}
 
-	appointmentService := AppointmentService{
-		AppointmentID:    uuid.New(),
-		ServiceID:        uuid.New(),
-		StaffID:          uuid.New(),
-		Price:            75.00,
-		Discount:         5.00,
-		Duration:         45,
-		StartTime:        time.Now(),
-		EndTime:          time.Now().Add(45 * time.Minute),
-		Status:           AppointmentStatusConfirmed,
-		SelectedOptions:  selectedOptions,
+	for _, test := range tests {
+		assert.Equal(t, test.expected, string(test.status))
 	}
-
-	assert.Equal(t, 75.00, appointmentService.Price)
-	assert.Equal(t, 45, appointmentService.Duration)
-	assert.Equal(t, 2, len(appointmentService.SelectedOptions))
-	assert.Equal(t, "Red", appointmentService.SelectedOptions[0].ChoiceName)
-	assert.Equal(t, 15.00, appointmentService.SelectedOptions[0].PriceAdjustment)
 }
 
-func TestAppointmentPayment(t *testing.T) {
-	// Test AppointmentPayment struct
-	payment := AppointmentPayment{
-		AppointmentID: uuid.New(),
-		Amount:        110.00,
-		PaymentMethod: PaymentMethodCard,
-		PaymentStatus: PaymentStatusPaid,
-		TransactionID: "txn_123456789",
-		PaymentDate:   time.Now(),
-		ReceiptURL:    "https://example.com/receipts/123456789.pdf",
+func TestPaymentStatus(t *testing.T) {
+	tests := []struct {
+		status   PaymentStatus
+		expected string
+	}{
+		{PaymentStatusPending, "pending"},
+		{PaymentStatusPaid, "paid"},
+		{PaymentStatusPartial, "partial"},
+		{PaymentStatusRefunded, "refunded"},
 	}
 
-	assert.Equal(t, 110.00, payment.Amount)
-	assert.Equal(t, PaymentMethodCard, payment.PaymentMethod)
-	assert.Equal(t, PaymentStatusPaid, payment.PaymentStatus)
-	assert.Equal(t, "txn_123456789", payment.TransactionID)
+	for _, test := range tests {
+		assert.Equal(t, test.expected, string(test.status))
+	}
 }
 
-func TestAppointmentForm(t *testing.T) {
-	// Test AppointmentForm struct
-	formData := FormData{
-		"allergies":   []string{"Latex", "Peanuts"},
-		"medications": []string{"Aspirin"},
-		"consent":     true,
+func TestPaymentMethod(t *testing.T) {
+	tests := []struct {
+		method   PaymentMethod
+		expected string
+	}{
+		{PaymentMethodCash, "cash"},
+		{PaymentMethodCard, "card"},
+		{PaymentMethodTransfer, "transfer"},
+		{PaymentMethodOther, "other"},
 	}
 
-	form := AppointmentForm{
-		AppointmentID: uuid.New(),
-		FormType:      "medical",
-		FormData:      formData,
-		IsCompleted:   true,
-		CompletedAt:   func() *time.Time { now := time.Now(); return &now }(),
+	for _, test := range tests {
+		assert.Equal(t, test.expected, string(test.method))
 	}
-
-	assert.Equal(t, "medical", form.FormType)
-	assert.True(t, form.IsCompleted)
-	assert.Equal(t, []string{"Latex", "Peanuts"}, form.FormData["allergies"])
 }
 
-func TestAppointmentFeedback(t *testing.T) {
-	// Test AppointmentFeedback struct
-	feedback := AppointmentFeedback{
-		AppointmentID: uuid.New(),
-		Rating:        5,
-		Comments:      "Great service!",
-		IsPublic:      true,
-		FeedbackItems: FeedbackItems{
-			ServiceQuality:      5,
-			StaffProfessionalism: 5,
-			Cleanliness:         4,
-			ValueForMoney:       4,
-			Atmosphere:          5,
-			WouldRecommend:      true,
-		},
+func TestAppointmentMethods(t *testing.T) {
+	appointment := Appointment{
+		Status:          AppointmentStatusCompleted,
+		ClientConfirmed: true,
+		StaffConfirmed:  true,
 	}
 
-	assert.Equal(t, 5, feedback.Rating)
-	assert.Equal(t, "Great service!", feedback.Comments)
-	assert.True(t, feedback.IsPublic)
-	assert.Equal(t, 5, feedback.FeedbackItems.ServiceQuality)
-	assert.True(t, feedback.FeedbackItems.WouldRecommend)
+	// Test IsCompleted
+	assert.True(t, appointment.IsCompleted())
+
+	// Test IsConfirmed
+	assert.True(t, appointment.IsConfirmed())
+
+	// Test IsCancelled
+	assert.False(t, appointment.IsCancelled())
+
+	// Change status to cancelled
+	appointment.Status = AppointmentStatusCancelled
+	assert.True(t, appointment.IsCancelled())
+	assert.False(t, appointment.IsCompleted())
+
+	// Test with incomplete confirmation
+	appointment.StaffConfirmed = false
+	assert.False(t, appointment.IsConfirmed())
 }
 
-func TestNotificationSettingsSerialization(t *testing.T) {
-	// Test JSON serialization and deserialization
-	now := time.Now()
-	notifications := NotificationSettings{
-		ClientReminded:    true,
-		ClientReminderSent: now,
-		ConfirmationSent:  true,
-		ConfirmationTime:  now,
+func TestAppointmentDuration(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(90 * time.Minute)
+
+	appointment := Appointment{
+		StartTime: startTime,
+		EndTime:   endTime,
 	}
 
-	// Serialize to JSON
-	jsonBytes, err := json.Marshal(notifications)
-	assert.NoError(t, err)
-
-	// Deserialize back
-	var deserialized NotificationSettings
-	err = json.Unmarshal(jsonBytes, &deserialized)
-	assert.NoError(t, err)
-
-	assert.Equal(t, notifications.ClientReminded, deserialized.ClientReminded)
-	assert.Equal(t, notifications.ConfirmationSent, deserialized.ConfirmationSent)
+	assert.Equal(t, 90, appointment.Duration())
 }
 
-func TestAppointmentServiceOptionsSerialization(t *testing.T) {
-	// Test JSON serialization and deserialization for AppointmentServiceOptions
-	options := AppointmentServiceOptions{
-		{
-			OptionID:        uuid.New(),
-			OptionName:      "Length",
-			ChoiceID:        uuid.New(),
-			ChoiceName:      "Long",
-			PriceAdjustment: 25.00,
-			TimeAdjustment:  15,
-		},
+func TestAppointmentJSON(t *testing.T) {
+	estimatedPrice := 100.00
+	paymentMethod := PaymentMethodCard
+
+	appointment := Appointment{
+		BusinessID:     uuid.New(),
+		ClientID:       uuid.New(),
+		StaffID:        uuid.New(),
+		ServiceID:      uuid.New(),
+		StartTime:      time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		EndTime:        time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
+		Status:         AppointmentStatusConfirmed,
+		Notes:          "Test appointment",
+		EstimatedPrice: &estimatedPrice,
+		PaymentMethod:  &paymentMethod,
+		PaymentStatus:  PaymentStatusPaid,
 	}
 
-	// Serialize to JSON
-	jsonBytes, err := json.Marshal(options)
+	// Test JSON marshaling
+	jsonBytes, err := json.Marshal(appointment)
 	assert.NoError(t, err)
+	assert.NotEmpty(t, jsonBytes)
 
-	// Deserialize back
-	var deserialized AppointmentServiceOptions
-	err = json.Unmarshal(jsonBytes, &deserialized)
+	// Test JSON unmarshaling
+	var unmarshaled Appointment
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
 	assert.NoError(t, err)
+	assert.Equal(t, appointment.BusinessID, unmarshaled.BusinessID)
+	assert.Equal(t, appointment.Status, unmarshaled.Status)
+	assert.Equal(t, appointment.PaymentStatus, unmarshaled.PaymentStatus)
+	assert.Equal(t, appointment.Notes, unmarshaled.Notes)
 
-	assert.Equal(t, 1, len(deserialized))
-	assert.Equal(t, options[0].OptionName, deserialized[0].OptionName)
-	assert.Equal(t, options[0].ChoiceName, deserialized[0].ChoiceName)
-	assert.Equal(t, options[0].PriceAdjustment, deserialized[0].PriceAdjustment)
+	if appointment.EstimatedPrice != nil && unmarshaled.EstimatedPrice != nil {
+		assert.Equal(t, *appointment.EstimatedPrice, *unmarshaled.EstimatedPrice)
+	}
+
+	if appointment.PaymentMethod != nil && unmarshaled.PaymentMethod != nil {
+		assert.Equal(t, *appointment.PaymentMethod, *unmarshaled.PaymentMethod)
+	}
 }
 
-func TestFormDataSerialization(t *testing.T) {
-	// Test JSON serialization and deserialization for FormData
-	formData := FormData{
-		"name":    "John Doe",
-		"age":     30,
-		"history": []string{"Treatment A", "Treatment B"},
-		"contact": map[string]interface{}{
-			"email": "john@example.com",
-			"phone": "123-456-7890",
-		},
-	}
-
-	// Serialize to JSON
-	jsonBytes, err := json.Marshal(formData)
-	assert.NoError(t, err)
-
-	// Deserialize back
-	var deserialized FormData
-	err = json.Unmarshal(jsonBytes, &deserialized)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "John Doe", deserialized["name"])
-	assert.Equal(t, float64(30), deserialized["age"])
-	
-	// Check the history array
-	historyInterface, ok := deserialized["history"]
-	assert.True(t, ok)
-	history, ok := historyInterface.([]interface{})
-	assert.True(t, ok)
-	assert.Equal(t, 2, len(history))
-	assert.Equal(t, "Treatment A", history[0])
-	
-	// Check the nested map
-	contactInterface, ok := deserialized["contact"]
-	assert.True(t, ok)
-	contact, ok := contactInterface.(map[string]interface{})
-	assert.True(t, ok)
-	assert.Equal(t, "john@example.com", contact["email"])
+func TestAppointmentTableName(t *testing.T) {
+	appointment := Appointment{}
+	assert.Equal(t, "appointments", appointment.TableName())
 }
 
-func TestFeedbackItemsSerialization(t *testing.T) {
-	// Test JSON serialization and deserialization for FeedbackItems
-	feedback := FeedbackItems{
-		ServiceQuality:      5,
-		StaffProfessionalism: 4,
-		Cleanliness:         5,
-		ValueForMoney:       3,
-		Atmosphere:          4,
-		WouldRecommend:      true,
+func TestAppointmentWithNilValues(t *testing.T) {
+	appointment := Appointment{
+		BusinessID:         uuid.New(),
+		ClientID:           uuid.New(),
+		StaffID:            uuid.New(),
+		ServiceID:          uuid.New(),
+		StartTime:          time.Now(),
+		EndTime:            time.Now().Add(1 * time.Hour),
+		Status:             AppointmentStatusScheduled,
+		PaymentStatus:      PaymentStatusPending,
+		EstimatedPrice:     nil, // Test nil pointer
+		ActualPrice:        nil, // Test nil pointer
+		PaymentMethod:      nil, // Test nil pointer
+		ClientConfirmed:    false,
+		StaffConfirmed:     false,
+		CancellationReason: "",
 	}
 
-	// Serialize to JSON
-	jsonBytes, err := json.Marshal(feedback)
-	assert.NoError(t, err)
-
-	// Deserialize back
-	var deserialized FeedbackItems
-	err = json.Unmarshal(jsonBytes, &deserialized)
-	assert.NoError(t, err)
-
-	assert.Equal(t, feedback.ServiceQuality, deserialized.ServiceQuality)
-	assert.Equal(t, feedback.StaffProfessionalism, deserialized.StaffProfessionalism)
-	assert.Equal(t, feedback.WouldRecommend, deserialized.WouldRecommend)
+	// Should not panic with nil values
+	assert.Equal(t, AppointmentStatusScheduled, appointment.Status)
+	assert.Equal(t, PaymentStatusPending, appointment.PaymentStatus)
+	assert.Nil(t, appointment.EstimatedPrice)
+	assert.Nil(t, appointment.ActualPrice)
+	assert.Nil(t, appointment.PaymentMethod)
+	assert.False(t, appointment.IsConfirmed())
+	assert.False(t, appointment.IsCompleted())
+	assert.False(t, appointment.IsCancelled())
 }

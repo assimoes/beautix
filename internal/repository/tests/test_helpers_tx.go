@@ -24,14 +24,14 @@ func createTestStaffWithPositionTx(t *testing.T, tx *gorm.DB, businessID, userID
 		JoinDate:        time.Now().Add(-30 * 24 * time.Hour),
 		CommissionRate:  15.0,
 	}
-	
+
 	// Set created_by
 	createdBy := userID
 	staff.CreatedBy = &createdBy
-	
+
 	err := tx.Create(staff).Error
 	require.NoError(t, err, "Failed to create test staff with position: "+position)
-	
+
 	return staff
 }
 
@@ -39,18 +39,18 @@ func createTestStaffWithPositionTx(t *testing.T, tx *gorm.DB, businessID, userID
 func createTestServiceWithCategoryTx(t *testing.T, tx *gorm.DB, businessID, createdByID uuid.UUID) *models.Service {
 	// Create a service category first
 	category := &models.ServiceCategory{
+		BusinessID:  businessID,
 		Name:        "Test Category",
 		Description: "Test category description",
 	}
-	
+
 	err := tx.Create(category).Error
 	require.NoError(t, err, "Failed to create test service category")
 
 	// Now create the service with a reference to the category
-	categoryID := category.ID
 	service := &models.Service{
 		BusinessID:  businessID,
-		CategoryID:  &categoryID,
+		Category:    category.Name,
 		Name:        "Test Service " + uuid.New().String(), // Ensure unique name
 		Description: "Test service description",
 		Duration:    60, // 60 minutes
@@ -89,19 +89,19 @@ func createTestServiceAssignmentTx(t *testing.T, tx *gorm.DB, businessID, staffI
 func createTestAvailabilityExceptionTx(t *testing.T, tx *gorm.DB, businessID, staffID, userID uuid.UUID) *models.AvailabilityException {
 	startTime := time.Now().Add(24 * time.Hour) // Tomorrow
 	endTime := startTime.Add(8 * time.Hour)     // 8 hours duration
-	
+
 	return createTestAvailabilityExceptionWithDatesTx(t, tx, businessID, staffID, userID, startTime, endTime, false)
 }
 
 // createTestAvailabilityExceptionWithDatesTx creates a test availability exception with specific dates within a transaction
 func createTestAvailabilityExceptionWithDatesTx(
-	t *testing.T, 
-	tx *gorm.DB, 
-	businessID, 
-	staffID, 
-	userID uuid.UUID, 
-	startTime, 
-	endTime time.Time, 
+	t *testing.T,
+	tx *gorm.DB,
+	businessID,
+	staffID,
+	userID uuid.UUID,
+	startTime,
+	endTime time.Time,
 	isRecurring bool,
 ) *models.AvailabilityException {
 	exception := &models.AvailabilityException{
@@ -115,14 +115,14 @@ func createTestAvailabilityExceptionWithDatesTx(
 		RecurrenceRule: "",
 		Notes:          "Test exception",
 	}
-	
+
 	// Set created_by
 	createdBy := userID
 	exception.CreatedBy = &createdBy
-	
+
 	err := tx.Create(exception).Error
 	require.NoError(t, err, "Failed to create test availability exception")
-	
+
 	return exception
 }
 
@@ -130,18 +130,18 @@ func createTestAvailabilityExceptionWithDatesTx(
 func createTestStaffPerformanceTx(t *testing.T, tx *gorm.DB, businessID, staffID uuid.UUID) *models.StaffPerformance {
 	startDate := time.Now().AddDate(0, -1, 0).Truncate(24 * time.Hour) // Last month
 	endDate := time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour)   // Yesterday
-	
+
 	return createTestStaffPerformanceWithPeriodTx(t, tx, businessID, staffID, "monthly", startDate, endDate)
 }
 
 // createTestStaffPerformanceWithPeriodTx creates a test staff performance record with specific period and dates within a transaction
 func createTestStaffPerformanceWithPeriodTx(
-	t *testing.T, 
-	tx *gorm.DB, 
-	businessID, 
-	staffID uuid.UUID, 
-	period string, 
-	startDate, 
+	t *testing.T,
+	tx *gorm.DB,
+	businessID,
+	staffID uuid.UUID,
+	period string,
+	startDate,
 	endDate time.Time,
 ) *models.StaffPerformance {
 	performance := &models.StaffPerformance{
@@ -160,9 +160,9 @@ func createTestStaffPerformanceWithPeriodTx(
 		NewClients:            10,
 		ReturnClients:         35,
 	}
-	
+
 	err := tx.Create(performance).Error
 	require.NoError(t, err, "Failed to create test staff performance record")
-	
+
 	return performance
 }

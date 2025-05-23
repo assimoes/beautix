@@ -9,19 +9,19 @@ import (
 
 // User represents a user in the system
 type User struct {
-	UserID             uuid.UUID `json:"user_id"`
-	Email              string    `json:"email"`
-	PasswordHash       string    `json:"-"`
-	FirstName          string    `json:"first_name"`
-	LastName           string    `json:"last_name"`
-	Phone              string    `json:"phone,omitempty"`
-	Role               string    `json:"role"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	UserID             uuid.UUID  `json:"user_id"`
+	Email              string     `json:"email"`
+	ClerkID            uuid.UUID  `json:"clerk_id"`
+	FirstName          string     `json:"first_name"`
+	LastName           string     `json:"last_name"`
+	Phone              string     `json:"phone,omitempty"`
+	Role               string     `json:"role"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 	LastLogin          *time.Time `json:"last_login,omitempty"`
-	IsActive           bool      `json:"is_active"`
-	EmailVerified      bool      `json:"email_verified"`
-	LanguagePreference string    `json:"language_preference"`
+	IsActive           bool       `json:"is_active"`
+	EmailVerified      bool       `json:"email_verified"`
+	LanguagePreference string     `json:"language_preference"`
 }
 
 // CreateUserInput is the input for creating a user

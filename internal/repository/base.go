@@ -93,7 +93,7 @@ func (r *BaseRepository) UpdateWithAudit(ctx context.Context, model interface{},
 		// If updates is a struct, apply audit fields
 		r.ApplyUpdateAuditFields(updates, updatedBy)
 	}
-	
+
 	return r.WithContext(ctx).Model(model).Updates(updates).Error
 }
 
@@ -144,7 +144,7 @@ type StandardList[T any] interface {
 
 // Paginated represents a paginated result
 type Paginated[T any] struct {
-	Data       []*T `json:"data"`
+	Data       []*T  `json:"data"`
 	Total      int64 `json:"total"`
 	Page       int   `json:"page"`
 	PageSize   int   `json:"page_size"`

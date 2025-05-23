@@ -9,52 +9,52 @@ import (
 
 // Provider represents a beauty service provider
 type Provider struct {
-	ID              uuid.UUID  `json:"id"`
-	UserID          uuid.UUID  `json:"user_id"`
-	BusinessName    string     `json:"business_name"`
-	Description     string     `json:"description"`
-	Address         string     `json:"address"`
-	City            string     `json:"city"`
-	PostalCode      string     `json:"postal_code"`
-	Country         string     `json:"country"`
-	Website         string     `json:"website"`
-	LogoURL         string     `json:"logo_url"`
+	ID               uuid.UUID  `json:"id"`
+	UserID           uuid.UUID  `json:"user_id"`
+	BusinessName     string     `json:"business_name"`
+	Description      string     `json:"description"`
+	Address          string     `json:"address"`
+	City             string     `json:"city"`
+	PostalCode       string     `json:"postal_code"`
+	Country          string     `json:"country"`
+	Website          string     `json:"website"`
+	LogoURL          string     `json:"logo_url"`
 	SubscriptionTier string     `json:"subscription_tier"`
-	CreatedAt       time.Time  `json:"created_at"`
-	CreatedBy       *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy       *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy       *uuid.UUID `json:"deleted_by,omitempty"`
-	
+	CreatedAt        time.Time  `json:"created_at"`
+	CreatedBy        *uuid.UUID `json:"created_by,omitempty"`
+	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
+	UpdatedBy        *uuid.UUID `json:"updated_by,omitempty"`
+	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy        *uuid.UUID `json:"deleted_by,omitempty"`
+
 	// Expanded relationships (populated by service when needed)
 	User *User `json:"user,omitempty"`
 }
 
 // CreateProviderInput is the input for creating a provider
 type CreateProviderInput struct {
-	UserID          uuid.UUID `json:"user_id" validate:"required"`
-	BusinessName    string    `json:"business_name" validate:"required"`
-	Description     string    `json:"description"`
-	Address         string    `json:"address"`
-	City            string    `json:"city"`
-	PostalCode      string    `json:"postal_code"`
-	Country         string    `json:"country" validate:"required"`
-	Website         string    `json:"website"`
-	LogoURL         string    `json:"logo_url"`
+	UserID           uuid.UUID `json:"user_id" validate:"required"`
+	BusinessName     string    `json:"business_name" validate:"required"`
+	Description      string    `json:"description"`
+	Address          string    `json:"address"`
+	City             string    `json:"city"`
+	PostalCode       string    `json:"postal_code"`
+	Country          string    `json:"country" validate:"required"`
+	Website          string    `json:"website"`
+	LogoURL          string    `json:"logo_url"`
 	SubscriptionTier string    `json:"subscription_tier"`
 }
 
 // UpdateProviderInput is the input for updating a provider
 type UpdateProviderInput struct {
-	BusinessName    *string `json:"business_name"`
-	Description     *string `json:"description"`
-	Address         *string `json:"address"`
-	City            *string `json:"city"`
-	PostalCode      *string `json:"postal_code"`
-	Country         *string `json:"country"`
-	Website         *string `json:"website"`
-	LogoURL         *string `json:"logo_url"`
+	BusinessName     *string `json:"business_name"`
+	Description      *string `json:"description"`
+	Address          *string `json:"address"`
+	City             *string `json:"city"`
+	PostalCode       *string `json:"postal_code"`
+	Country          *string `json:"country"`
+	Website          *string `json:"website"`
+	LogoURL          *string `json:"logo_url"`
 	SubscriptionTier *string `json:"subscription_tier"`
 }
 

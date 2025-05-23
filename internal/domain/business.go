@@ -153,18 +153,18 @@ type SubscriptionService interface {
 
 // BusinessSettings represents settings for a business
 type BusinessSettings struct {
-	SettingID                 uuid.UUID `json:"setting_id"`
-	BusinessID                uuid.UUID `json:"business_id"`
-	CalendarStartHour         int       `json:"calendar_start_hour"`
-	CalendarEndHour           int       `json:"calendar_end_hour"`
-	AppointmentBufferMinutes  int       `json:"appointment_buffer_minutes"`
-	AllowOnlineBooking        bool      `json:"allow_online_booking"`
+	SettingID                  uuid.UUID `json:"setting_id"`
+	BusinessID                 uuid.UUID `json:"business_id"`
+	CalendarStartHour          int       `json:"calendar_start_hour"`
+	CalendarEndHour            int       `json:"calendar_end_hour"`
+	AppointmentBufferMinutes   int       `json:"appointment_buffer_minutes"`
+	AllowOnlineBooking         bool      `json:"allow_online_booking"`
 	DefaultAppointmentDuration int       `json:"default_appointment_duration"`
-	Currency                  string    `json:"currency"`
-	DateFormat                string    `json:"date_format"`
-	TimeFormat                string    `json:"time_format"`
-	CreatedAt                 time.Time `json:"created_at"`
-	UpdatedAt                 time.Time `json:"updated_at"`
+	Currency                   string    `json:"currency"`
+	DateFormat                 string    `json:"date_format"`
+	TimeFormat                 string    `json:"time_format"`
+	CreatedAt                  time.Time `json:"created_at"`
+	UpdatedAt                  time.Time `json:"updated_at"`
 
 	// Expanded relationships
 	Business *Business `json:"business,omitempty"`
@@ -172,27 +172,27 @@ type BusinessSettings struct {
 
 // CreateBusinessSettingsInput is the input for creating business settings
 type CreateBusinessSettingsInput struct {
-	BusinessID                uuid.UUID `json:"business_id" validate:"required"`
-	CalendarStartHour         *int      `json:"calendar_start_hour,omitempty"`
-	CalendarEndHour           *int      `json:"calendar_end_hour,omitempty"`
-	AppointmentBufferMinutes  *int      `json:"appointment_buffer_minutes,omitempty"`
-	AllowOnlineBooking        *bool     `json:"allow_online_booking,omitempty"`
+	BusinessID                 uuid.UUID `json:"business_id" validate:"required"`
+	CalendarStartHour          *int      `json:"calendar_start_hour,omitempty"`
+	CalendarEndHour            *int      `json:"calendar_end_hour,omitempty"`
+	AppointmentBufferMinutes   *int      `json:"appointment_buffer_minutes,omitempty"`
+	AllowOnlineBooking         *bool     `json:"allow_online_booking,omitempty"`
 	DefaultAppointmentDuration *int      `json:"default_appointment_duration,omitempty"`
-	Currency                  *string   `json:"currency,omitempty"`
-	DateFormat                *string   `json:"date_format,omitempty"`
-	TimeFormat                *string   `json:"time_format,omitempty"`
+	Currency                   *string   `json:"currency,omitempty"`
+	DateFormat                 *string   `json:"date_format,omitempty"`
+	TimeFormat                 *string   `json:"time_format,omitempty"`
 }
 
 // UpdateBusinessSettingsInput is the input for updating business settings
 type UpdateBusinessSettingsInput struct {
-	CalendarStartHour         *int    `json:"calendar_start_hour,omitempty"`
-	CalendarEndHour           *int    `json:"calendar_end_hour,omitempty"`
-	AppointmentBufferMinutes  *int    `json:"appointment_buffer_minutes,omitempty"`
-	AllowOnlineBooking        *bool   `json:"allow_online_booking,omitempty"`
+	CalendarStartHour          *int    `json:"calendar_start_hour,omitempty"`
+	CalendarEndHour            *int    `json:"calendar_end_hour,omitempty"`
+	AppointmentBufferMinutes   *int    `json:"appointment_buffer_minutes,omitempty"`
+	AllowOnlineBooking         *bool   `json:"allow_online_booking,omitempty"`
 	DefaultAppointmentDuration *int    `json:"default_appointment_duration,omitempty"`
-	Currency                  *string `json:"currency,omitempty"`
-	DateFormat                *string `json:"date_format,omitempty"`
-	TimeFormat                *string `json:"time_format,omitempty"`
+	Currency                   *string `json:"currency,omitempty"`
+	DateFormat                 *string `json:"date_format,omitempty"`
+	TimeFormat                 *string `json:"time_format,omitempty"`
 }
 
 // BusinessSettingsRepository defines methods for business settings data store
@@ -213,15 +213,15 @@ type BusinessSettingsService interface {
 
 // NotificationSettings represents notification settings for a business
 type NotificationSettings struct {
-	SettingID        uuid.UUID  `json:"setting_id"`
-	BusinessID       uuid.UUID  `json:"business_id"`
-	NotificationType string     `json:"notification_type"`
-	IsEnabled        bool       `json:"is_enabled"`
-	TemplateSubject  string     `json:"template_subject,omitempty"`
-	TemplateContent  string     `json:"template_content,omitempty"`
-	SendTimeBefore   *int       `json:"send_time_before,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	SettingID        uuid.UUID `json:"setting_id"`
+	BusinessID       uuid.UUID `json:"business_id"`
+	NotificationType string    `json:"notification_type"`
+	IsEnabled        bool      `json:"is_enabled"`
+	TemplateSubject  string    `json:"template_subject,omitempty"`
+	TemplateContent  string    `json:"template_content,omitempty"`
+	SendTimeBefore   *int      `json:"send_time_before,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 
 	// Expanded relationships
 	Business *Business `json:"business,omitempty"`

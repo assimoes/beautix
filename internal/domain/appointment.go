@@ -7,53 +7,56 @@ import (
 	"github.com/google/uuid"
 )
 
-// Appointment represents a scheduled appointment between a client and provider
+// Appointment represents a scheduled appointment between a client and staff for a service
 type Appointment struct {
-	ID          uuid.UUID  `json:"id"`
-	ProviderID  uuid.UUID  `json:"provider_id"`
-	ClientID    uuid.UUID  `json:"client_id"`
-	ServiceID   uuid.UUID  `json:"service_id"`
-	StartTime   time.Time  `json:"start_time"`
-	EndTime     time.Time  `json:"end_time"`
-	Status      string     `json:"status"` // scheduled, confirmed, completed, cancelled, no-show
-	Notes       string     `json:"notes"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CreatedBy   *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy   *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy   *uuid.UUID `json:"deleted_by,omitempty"`
-	
+	ID         uuid.UUID  `json:"id"`
+	BusinessID uuid.UUID  `json:"business_id"`
+	ClientID   uuid.UUID  `json:"client_id"`
+	StaffID    uuid.UUID  `json:"staff_id"`
+	ServiceID  uuid.UUID  `json:"service_id"`
+	StartTime  time.Time  `json:"start_time"`
+	EndTime    time.Time  `json:"end_time"`
+	Status     string     `json:"status"` // scheduled, confirmed, completed, cancelled, no-show
+	Notes      string     `json:"notes"`
+	CreatedAt  time.Time  `json:"created_at"`
+	CreatedBy  *uuid.UUID `json:"created_by,omitempty"`
+	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
+	UpdatedBy  *uuid.UUID `json:"updated_by,omitempty"`
+	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy  *uuid.UUID `json:"deleted_by,omitempty"`
+
 	// Expanded relationships (populated by service when needed)
-	Provider *Provider `json:"provider,omitempty"`
+	Business *Business `json:"business,omitempty"`
 	Client   *Client   `json:"client,omitempty"`
+	Staff    *Staff    `json:"staff,omitempty"`
 	Service  *Service  `json:"service,omitempty"`
 }
 
 // ServiceCompletion represents a completed service with financial tracking
 type ServiceCompletion struct {
-	ID               uuid.UUID  `json:"id"`
-	AppointmentID    uuid.UUID  `json:"appointment_id"`
-	PriceCharged     float64    `json:"price_charged"`
-	PaymentMethod    string     `json:"payment_method"`
+	ID                uuid.UUID  `json:"id"`
+	AppointmentID     uuid.UUID  `json:"appointment_id"`
+	PriceCharged      float64    `json:"price_charged"`
+	PaymentMethod     string     `json:"payment_method"`
 	ProviderConfirmed bool       `json:"provider_confirmed"`
-	ClientConfirmed  bool       `json:"client_confirmed"`
-	CompletionDate   *time.Time `json:"completion_date,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	CreatedBy        *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy        *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy        *uuid.UUID `json:"deleted_by,omitempty"`
-	
+	ClientConfirmed   bool       `json:"client_confirmed"`
+	CompletionDate    *time.Time `json:"completion_date,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	CreatedBy         *uuid.UUID `json:"created_by,omitempty"`
+	UpdatedAt         *time.Time `json:"updated_at,omitempty"`
+	UpdatedBy         *uuid.UUID `json:"updated_by,omitempty"`
+	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy         *uuid.UUID `json:"deleted_by,omitempty"`
+
 	// Expanded relationships (populated by service when needed)
 	Appointment *Appointment `json:"appointment,omitempty"`
 }
 
 // CreateAppointmentInput is the input for creating an appointment
 type CreateAppointmentInput struct {
-	ProviderID uuid.UUID `json:"provider_id" validate:"required"`
+	BusinessID uuid.UUID `json:"business_id" validate:"required"`
 	ClientID   uuid.UUID `json:"client_id" validate:"required"`
+	StaffID    uuid.UUID `json:"staff_id" validate:"required"`
 	ServiceID  uuid.UUID `json:"service_id" validate:"required"`
 	StartTime  time.Time `json:"start_time" validate:"required"`
 	EndTime    time.Time `json:"end_time" validate:"required,gtfield=StartTime"`
@@ -72,21 +75,21 @@ type UpdateAppointmentInput struct {
 
 // CreateServiceCompletionInput is the input for creating a service completion
 type CreateServiceCompletionInput struct {
-	AppointmentID    uuid.UUID `json:"appointment_id" validate:"required"`
-	PriceCharged     float64   `json:"price_charged" validate:"required,min=0"`
-	PaymentMethod    string    `json:"payment_method" validate:"required"`
-	ProviderConfirmed bool      `json:"provider_confirmed"`
-	ClientConfirmed  bool      `json:"client_confirmed"`
-	CompletionDate   *time.Time `json:"completion_date"`
+	AppointmentID     uuid.UUID  `json:"appointment_id" validate:"required"`
+	PriceCharged      float64    `json:"price_charged" validate:"required,min=0"`
+	PaymentMethod     string     `json:"payment_method" validate:"required"`
+	ProviderConfirmed bool       `json:"provider_confirmed"`
+	ClientConfirmed   bool       `json:"client_confirmed"`
+	CompletionDate    *time.Time `json:"completion_date"`
 }
 
 // UpdateServiceCompletionInput is the input for updating a service completion
 type UpdateServiceCompletionInput struct {
-	PriceCharged     *float64   `json:"price_charged" validate:"omitempty,min=0"`
-	PaymentMethod    *string    `json:"payment_method"`
+	PriceCharged      *float64   `json:"price_charged" validate:"omitempty,min=0"`
+	PaymentMethod     *string    `json:"payment_method"`
 	ProviderConfirmed *bool      `json:"provider_confirmed"`
-	ClientConfirmed  *bool      `json:"client_confirmed"`
-	CompletionDate   *time.Time `json:"completion_date"`
+	ClientConfirmed   *bool      `json:"client_confirmed"`
+	CompletionDate    *time.Time `json:"completion_date"`
 }
 
 // AppointmentRepository defines methods for appointment data store
@@ -95,11 +98,14 @@ type AppointmentRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Appointment, error)
 	Update(ctx context.Context, id uuid.UUID, input *UpdateAppointmentInput, updatedBy uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListByProvider(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
+	ListByBusiness(ctx context.Context, businessID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
+	ListByStaff(ctx context.Context, staffID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
 	ListByClient(ctx context.Context, clientID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
 	Count(ctx context.Context) (int64, error)
-	CountByProvider(ctx context.Context, providerID uuid.UUID) (int64, error)
-	CountByProviderAndDateRange(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time) (int64, error)
+	CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
+	CountByStaff(ctx context.Context, staffID uuid.UUID) (int64, error)
+	CountByBusinessAndDateRange(ctx context.Context, businessID uuid.UUID, startDate, endDate time.Time) (int64, error)
+	CountByStaffAndDateRange(ctx context.Context, staffID uuid.UUID, startDate, endDate time.Time) (int64, error)
 }
 
 // ServiceCompletionRepository defines methods for service completion data store

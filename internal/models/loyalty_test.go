@@ -12,36 +12,36 @@ import (
 func TestLoyaltyProgramModel(t *testing.T) {
 	// Test LoyaltyProgram Struct
 	rules := LoyaltyProgramRules{
-		ApplicableServices:    []uuid.UUID{uuid.New(), uuid.New()},
-		MinimumSpend:          50.00,
-		PointsRoundingMethod:  "up",
-		AllowPointsExpiry:     true,
-		PointsExpiryMonths:    12,
+		ApplicableServices:     []uuid.UUID{uuid.New(), uuid.New()},
+		MinimumSpend:           50.00,
+		PointsRoundingMethod:   "up",
+		AllowPointsExpiry:      true,
+		PointsExpiryMonths:     12,
 		AllowCombineWithOffers: false,
-		RequireOptIn:          true,
+		RequireOptIn:           true,
 	}
 
 	tiers := TierDefinitions{
 		{
-			Name:           "Bronze",
-			Level:          1,
-			RequiredPoints: 0,
+			Name:             "Bronze",
+			Level:            1,
+			RequiredPoints:   0,
 			PointsMultiplier: 1.0,
-			Benefits:       []string{"Standard Earning Rate"},
+			Benefits:         []string{"Standard Earning Rate"},
 		},
 		{
-			Name:           "Silver",
-			Level:          2,
-			RequiredPoints: 500,
+			Name:             "Silver",
+			Level:            2,
+			RequiredPoints:   500,
 			PointsMultiplier: 1.25,
-			Benefits:       []string{"25% Bonus Points", "Birthday Gift"},
+			Benefits:         []string{"25% Bonus Points", "Birthday Gift"},
 		},
 		{
-			Name:           "Gold",
-			Level:          3,
-			RequiredPoints: 1000,
+			Name:             "Gold",
+			Level:            3,
+			RequiredPoints:   1000,
 			PointsMultiplier: 1.5,
-			Benefits:       []string{"50% Bonus Points", "Birthday Gift", "Priority Booking"},
+			Benefits:         []string{"50% Bonus Points", "Birthday Gift", "Priority Booking"},
 		},
 	}
 
@@ -99,17 +99,17 @@ func TestClientLoyaltyModel(t *testing.T) {
 	// Test ClientLoyalty struct
 	now := time.Now()
 	clientLoyalty := ClientLoyalty{
-		BusinessID:     uuid.New(),
-		ClientID:       uuid.New(),
-		ProgramID:      uuid.New(),
-		Points:         450,
-		Visits:         8,
-		TotalSpend:     560.75,
-		CurrentTier:    2,
-		EnrollmentDate: now.AddDate(0, -3, 0), // 3 months ago
+		BusinessID:       uuid.New(),
+		ClientID:         uuid.New(),
+		ProgramID:        uuid.New(),
+		Points:           450,
+		Visits:           8,
+		TotalSpend:       560.75,
+		CurrentTier:      2,
+		EnrollmentDate:   now.AddDate(0, -3, 0), // 3 months ago
 		LastActivityDate: &now,
-		IsActive:       true,
-		CardNumber:     "LYT123456789",
+		IsActive:         true,
+		CardNumber:       "LYT123456789",
 		MembershipStatus: "active",
 	}
 
@@ -168,15 +168,15 @@ func TestRewardRedemptionModel(t *testing.T) {
 func TestLoyaltyProgramRulesSerialization(t *testing.T) {
 	// Test JSON serialization and deserialization for LoyaltyProgramRules
 	rules := LoyaltyProgramRules{
-		ApplicableServices:    []uuid.UUID{uuid.New(), uuid.New()},
-		ExcludedServices:      []uuid.UUID{uuid.New()},
-		MinimumSpend:          25.00,
-		PointsRoundingMethod:  "nearest",
-		AllowPointsExpiry:     true,
-		PointsExpiryMonths:    6,
+		ApplicableServices:     []uuid.UUID{uuid.New(), uuid.New()},
+		ExcludedServices:       []uuid.UUID{uuid.New()},
+		MinimumSpend:           25.00,
+		PointsRoundingMethod:   "nearest",
+		AllowPointsExpiry:      true,
+		PointsExpiryMonths:     6,
 		AllowCombineWithOffers: true,
-		BlackoutDates:         []string{"2023-12-24", "2023-12-25", "2023-12-31"},
-		RequireOptIn:          false,
+		BlackoutDates:          []string{"2023-12-24", "2023-12-25", "2023-12-31"},
+		RequireOptIn:           false,
 	}
 
 	// Serialize to JSON
@@ -201,19 +201,19 @@ func TestTierDefinitionsSerialization(t *testing.T) {
 	// Test JSON serialization and deserialization for TierDefinitions
 	tiers := TierDefinitions{
 		{
-			Name:            "Standard",
-			Level:           1,
-			RequiredPoints:  0,
+			Name:             "Standard",
+			Level:            1,
+			RequiredPoints:   0,
 			PointsMultiplier: 1.0,
-			Benefits:        []string{"Basic Services"},
+			Benefits:         []string{"Basic Services"},
 		},
 		{
-			Name:            "Premium",
-			Level:           2,
-			RequiredPoints:  500,
-			RequiredSpend:   1000.00,
+			Name:             "Premium",
+			Level:            2,
+			RequiredPoints:   500,
+			RequiredSpend:    1000.00,
 			PointsMultiplier: 1.5,
-			Benefits:        []string{"Priority Booking", "Complimentary Drink"},
+			Benefits:         []string{"Priority Booking", "Complimentary Drink"},
 		},
 	}
 

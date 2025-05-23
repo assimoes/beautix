@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"time"
 )
 
 // SubscriptionTier represents a business subscription tier
@@ -24,28 +25,29 @@ const (
 // Business represents a business entity that provides beauty services
 type Business struct {
 	BaseModel
-	UserID           uuid.UUID       `gorm:"type:uuid;not null;index" json:"user_id"`
-	User             User            `gorm:"foreignKey:UserID" json:"user"`
-	Name             string          `gorm:"not null" json:"name"`
-	DisplayName      string          `gorm:"not null" json:"display_name"`
-	Description      string          `json:"description"`
-	Address          string          `json:"address"`
-	City             string          `json:"city"`
-	State            string          `json:"state"`
-	PostalCode       string          `json:"postal_code"`
-	Country          string          `gorm:"not null;default:'Portugal'" json:"country"`
-	Phone            string          `json:"phone"`
-	Email            string          `json:"email"`
-	Website          string          `json:"website"`
-	LogoURL          string          `json:"logo_url"`
-	CoverPhotoURL    string          `json:"cover_photo_url"`
-	TaxID            string          `json:"tax_id"`
+	UserID           uuid.UUID        `gorm:"type:uuid;not null;index" json:"user_id"`
+	User             User             `gorm:"foreignKey:UserID" json:"user"`
+	Name             string           `gorm:"not null" json:"name"`
+	BusinessType     string           `gorm:"column:_business_type;not null" json:"business_type"`
+	DisplayName      string           `json:"display_name"`
+	Address          string           `json:"address"`
+	City             string           `json:"city"`
+	State            string           `json:"state"`
+	PostalCode       string           `json:"postal_code"`
+	Country          string           `gorm:"not null;default:'Portugal'" json:"country"`
+	Phone            string           `gorm:"not null" json:"phone"`
+	Email            string           `gorm:"not null" json:"email"`
+	Website          string           `json:"website"`
+	LogoURL          string           `json:"logo_url"`
+	CoverPhotoURL    string           `json:"cover_photo_url"`
+	TaxID            string           `json:"tax_id"`
 	SubscriptionTier SubscriptionTier `gorm:"type:text;not null;default:'free'" json:"subscription_tier"`
-	IsActive         bool            `gorm:"not null;default:true" json:"is_active"`
-	IsVerified       bool            `gorm:"not null;default:false" json:"is_verified"`
-	Timezone         string          `gorm:"not null;default:'Europe/Lisbon'" json:"timezone"`
-	Currency         string          `gorm:"not null;default:'EUR'" json:"currency"`
-	SocialLinks      SocialLinks     `gorm:"type:jsonb" json:"social_links"`
+	IsActive         bool             `gorm:"not null;default:true" json:"is_active"`
+	IsVerified       bool             `gorm:"not null;default:false" json:"is_verified"`
+	TimeZone         string           `gorm:"column:time_zone;not null;default:'Europe/Lisbon'" json:"time_zone"`
+	Currency         string           `gorm:"not null;default:'EUR'" json:"currency"`
+	TrialEndsAt      *time.Time       `gorm:"column:trial_ends_at" json:"trial_ends_at,omitempty"`
+	SocialLinks      SocialLinks      `gorm:"type:jsonb" json:"social_links"`
 	Settings         BusinessSettings `gorm:"type:jsonb" json:"settings"`
 }
 
@@ -92,15 +94,15 @@ func (s SocialLinks) Value() (driver.Value, error) {
 
 // BusinessSettings stores business-specific settings
 type BusinessSettings struct {
-	AllowOnlineBooking       bool   `json:"allow_online_booking"`
-	RequireDeposit           bool   `json:"require_deposit"`
-	DepositAmount            float64 `json:"deposit_amount,omitempty"`
-	CancellationPolicyHours  int    `json:"cancellation_policy_hours"`
-	CancellationFeePercentage int    `json:"cancellation_fee_percentage"`
-	WorkingHours             WorkingHours `json:"working_hours"`
-	BookingNotificationsEnabled bool  `json:"booking_notifications_enabled"`
-	MarketingEnabled         bool   `json:"marketing_enabled"`
-	CustomTheme              Theme  `json:"custom_theme,omitempty"`
+	AllowOnlineBooking          bool         `json:"allow_online_booking"`
+	RequireDeposit              bool         `json:"require_deposit"`
+	DepositAmount               float64      `json:"deposit_amount,omitempty"`
+	CancellationPolicyHours     int          `json:"cancellation_policy_hours"`
+	CancellationFeePercentage   int          `json:"cancellation_fee_percentage"`
+	WorkingHours                WorkingHours `json:"working_hours"`
+	BookingNotificationsEnabled bool         `json:"booking_notifications_enabled"`
+	MarketingEnabled            bool         `json:"marketing_enabled"`
+	CustomTheme                 Theme        `json:"custom_theme,omitempty"`
 }
 
 // Scan implements the sql.Scanner interface for BusinessSettings
@@ -131,10 +133,10 @@ func (bs BusinessSettings) Value() (driver.Value, error) {
 
 // Theme defines the branding colors for a business
 type Theme struct {
-	PrimaryColor   string `json:"primary_color,omitempty"`
-	SecondaryColor string `json:"secondary_color,omitempty"`
-	AccentColor    string `json:"accent_color,omitempty"`
-	TextColor      string `json:"text_color,omitempty"`
+	PrimaryColor    string `json:"primary_color,omitempty"`
+	SecondaryColor  string `json:"secondary_color,omitempty"`
+	AccentColor     string `json:"accent_color,omitempty"`
+	TextColor       string `json:"text_color,omitempty"`
 	BackgroundColor string `json:"background_color,omitempty"`
 }
 
@@ -239,19 +241,19 @@ func (dh DayHours) Value() (driver.Value, error) {
 // BusinessLocation represents a physical location for a business (for businesses with multiple locations)
 type BusinessLocation struct {
 	BaseModel
-	BusinessID uuid.UUID `gorm:"type:uuid;not null;index" json:"business_id"`
-	Business   Business  `gorm:"foreignKey:BusinessID" json:"business"`
-	Name       string    `gorm:"not null" json:"name"`
-	Address    string    `json:"address"`
-	City       string    `json:"city"`
-	State      string    `json:"state"`
-	PostalCode string    `json:"postal_code"`
-	Country    string    `gorm:"not null;default:'Portugal'" json:"country"`
-	Phone      string    `json:"phone"`
-	Email      string    `json:"email"`
-	IsActive   bool      `gorm:"not null;default:true" json:"is_active"`
-	IsMain     bool      `gorm:"not null;default:false" json:"is_main"`
-	Timezone   string    `gorm:"not null;default:'Europe/Lisbon'" json:"timezone"`
+	BusinessID uuid.UUID        `gorm:"type:uuid;not null;index" json:"business_id"`
+	Business   Business         `gorm:"foreignKey:BusinessID" json:"business"`
+	Name       string           `gorm:"not null" json:"name"`
+	Address    string           `json:"address"`
+	City       string           `json:"city"`
+	State      string           `json:"state"`
+	PostalCode string           `json:"postal_code"`
+	Country    string           `gorm:"not null;default:'Portugal'" json:"country"`
+	Phone      string           `json:"phone"`
+	Email      string           `json:"email"`
+	IsActive   bool             `gorm:"not null;default:true" json:"is_active"`
+	IsMain     bool             `gorm:"not null;default:false" json:"is_main"`
+	Timezone   string           `gorm:"not null;default:'Europe/Lisbon'" json:"timezone"`
 	Settings   LocationSettings `gorm:"type:jsonb" json:"settings"`
 }
 

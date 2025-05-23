@@ -130,11 +130,84 @@ func setupTestSchema(db *DB) error {
 	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`).Error; err != nil {
 		return fmt.Errorf("failed to create uuid-ossp extension: %w", err)
 	}
-	
+
 	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`).Error; err != nil {
 		return fmt.Errorf("failed to create pgcrypto extension: %w", err)
 	}
-	
+
+	// Apply critical trigger fixes that are needed for tests to work
+	// This ensures test database has the correct trigger functions even if migrations aren't run
+	if err := applyTriggerFixes(db); err != nil {
+		return fmt.Errorf("failed to apply trigger fixes: %w", err)
+	}
+
+	return nil
+}
+
+// applyTriggerFixes applies the trigger function fixes needed for tests
+func applyTriggerFixes(db *DB) error {
+	// Fix the appointment overlap check function to use 'id' instead of 'appointment_id'
+	appointmentTriggerFix := `
+		CREATE OR REPLACE FUNCTION check_appointment_overlap()
+		RETURNS TRIGGER AS $$
+		DECLARE
+		    conflict_count INTEGER;
+		BEGIN
+		    -- Check for overlapping appointments for the same staff
+		    SELECT COUNT(*) INTO conflict_count
+		    FROM public.appointments a
+		    WHERE a.staff_id = NEW.staff_id
+		    AND a.id != NEW.id  -- Fixed: use 'id' instead of 'appointment_id'
+		    AND a.deleted_at IS NULL
+		    AND a.status NOT IN ('cancelled', 'no-show')
+		    AND (
+		        (NEW.start_time, NEW.end_time) OVERLAPS (a.start_time, a.end_time)
+		    );
+		    
+		    IF conflict_count > 0 THEN
+		        RAISE EXCEPTION 'Appointment time conflicts with existing appointment for this staff member';
+		    END IF;
+		    
+		    RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
+	`
+
+	if err := db.Exec(appointmentTriggerFix).Error; err != nil {
+		return fmt.Errorf("failed to fix appointment trigger function: %w", err)
+	}
+
+	// Fix the resource booking overlap check function to use 'id' instead of 'booking_id'
+	resourceTriggerFix := `
+		CREATE OR REPLACE FUNCTION check_resource_booking_overlap()
+		RETURNS TRIGGER AS $$
+		DECLARE
+		    conflict_count INTEGER;
+		BEGIN
+		    -- Check for overlapping resource bookings
+		    SELECT COUNT(*) INTO conflict_count
+		    FROM public.resource_bookings rb
+		    WHERE rb.resource_id = NEW.resource_id
+		    AND rb.id != NEW.id  -- Fixed: use 'id' instead of 'booking_id'
+		    AND rb.deleted_at IS NULL
+		    AND rb.status NOT IN ('cancelled')
+		    AND (
+		        (NEW.start_time, NEW.end_time) OVERLAPS (rb.start_time, rb.end_time)
+		    );
+		    
+		    IF conflict_count > 0 THEN
+		        RAISE EXCEPTION 'Resource booking time conflicts with existing booking for this resource';
+		    END IF;
+		    
+		    RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
+	`
+
+	if err := db.Exec(resourceTriggerFix).Error; err != nil {
+		return fmt.Errorf("failed to fix resource booking trigger function: %w", err)
+	}
+
 	return nil
 }
 
@@ -182,13 +255,13 @@ func TableExists(db *DB, tableName string) (bool, error) {
 		WHERE schemaname = 'public' 
 		AND tablename = $1
 	)`
-	
+
 	err := db.Raw(query, tableName).Scan(&exists).Error
 	return exists, err
 }
 
 // NewTestDBWithTransaction creates a test database connection and runs the test
-// within a transaction that is rolled back after completion. This ensures 
+// within a transaction that is rolled back after completion. This ensures
 // true test isolation and prevents interference between tests.
 func NewTestDBWithTransaction(t *testing.T, testFn func(db *gorm.DB)) {
 	// Load configuration
@@ -210,7 +283,7 @@ func NewTestDBWithTransaction(t *testing.T, testFn func(db *gorm.DB)) {
 	// Connect to the test database WITHOUT global cleanup
 	db, err := NewConnection(config)
 	require.NoError(t, err, "Failed to connect to test database")
-	
+
 	// Ensure database connection is closed after test
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -221,15 +294,15 @@ func NewTestDBWithTransaction(t *testing.T, testFn func(db *gorm.DB)) {
 	// Run basic schema setup (only extensions, no cleanup)
 	err = setupTestSchema(db)
 	require.NoError(t, err, "Failed to setup test schema")
-	
+
 	// Start a transaction
 	tx := db.Begin()
-	
+
 	// Ensure transaction is always rolled back
 	t.Cleanup(func() {
 		tx.Rollback()
 	})
-	
+
 	// Run the test function with the transaction
 	testFn(tx)
 }

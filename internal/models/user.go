@@ -12,8 +12,8 @@ const (
 	UserRoleUser UserRole = "user"
 	// UserRoleAdmin represents an admin user
 	UserRoleAdmin UserRole = "admin"
-	// UserRoleProvider represents a provider (business owner)
-	UserRoleProvider UserRole = "provider"
+	// UserRoleOwner represents a provider (business owner)
+	UserRoleOwner UserRole = "owner"
 	// UserRoleStaff represents a staff member
 	UserRoleStaff UserRole = "staff"
 )

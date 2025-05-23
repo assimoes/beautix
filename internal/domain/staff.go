@@ -9,25 +9,25 @@ import (
 
 // Staff represents a staff member in a business
 type Staff struct {
-	StaffID           uuid.UUID  `json:"staff_id"`
-	BusinessID        uuid.UUID  `json:"business_id"`
-	UserID            uuid.UUID  `json:"user_id"`
-	Position          string     `json:"position"`
-	Bio               string     `json:"bio,omitempty"`
-	SpecialtyAreas    []string   `json:"specialty_areas,omitempty"`
-	ProfileImageURL   string     `json:"profile_image_url,omitempty"`
-	WorkingHours      []byte     `json:"working_hours,omitempty"` // JSONB in database
-	IsActive          bool       `json:"is_active"`
-	EmploymentType    string     `json:"employment_type"`
-	JoinDate          time.Time  `json:"join_date"`
-	EndDate           *time.Time `json:"end_date,omitempty"`
-	CommissionRate    float64    `json:"commission_rate,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	CreatedBy         uuid.UUID  `json:"created_by"`
-	UpdatedAt         *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy         *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy         *uuid.UUID `json:"deleted_by,omitempty"`
+	StaffID         uuid.UUID  `json:"staff_id"`
+	BusinessID      uuid.UUID  `json:"business_id"`
+	UserID          uuid.UUID  `json:"user_id"`
+	Position        string     `json:"position"`
+	Bio             string     `json:"bio,omitempty"`
+	SpecialtyAreas  []string   `json:"specialty_areas,omitempty"`
+	ProfileImageURL string     `json:"profile_image_url,omitempty"`
+	WorkingHours    []byte     `json:"working_hours,omitempty"` // JSONB in database
+	IsActive        bool       `json:"is_active"`
+	EmploymentType  string     `json:"employment_type"`
+	JoinDate        time.Time  `json:"join_date"`
+	EndDate         *time.Time `json:"end_date,omitempty"`
+	CommissionRate  float64    `json:"commission_rate,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	CreatedBy       uuid.UUID  `json:"created_by"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+	UpdatedBy       *uuid.UUID `json:"updated_by,omitempty"`
+	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy       *uuid.UUID `json:"deleted_by,omitempty"`
 
 	// Expanded relationships (populated by service when needed)
 	User     *User     `json:"user,omitempty"`
@@ -36,18 +36,18 @@ type Staff struct {
 
 // CreateStaffInput is the input for creating a staff member
 type CreateStaffInput struct {
-	BusinessID      uuid.UUID `json:"business_id" validate:"required"`
-	UserID          uuid.UUID `json:"user_id" validate:"required"`
-	Position        string    `json:"position" validate:"required"`
-	Bio             string    `json:"bio,omitempty"`
-	SpecialtyAreas  []string  `json:"specialty_areas,omitempty"`
-	ProfileImageURL string    `json:"profile_image_url,omitempty"`
-	WorkingHours    []byte    `json:"working_hours,omitempty"`
-	IsActive        *bool     `json:"is_active,omitempty"`
-	EmploymentType  string    `json:"employment_type" validate:"required"`
-	JoinDate        time.Time `json:"join_date" validate:"required"`
+	BusinessID      uuid.UUID  `json:"business_id" validate:"required"`
+	UserID          uuid.UUID  `json:"user_id" validate:"required"`
+	Position        string     `json:"position" validate:"required"`
+	Bio             string     `json:"bio,omitempty"`
+	SpecialtyAreas  []string   `json:"specialty_areas,omitempty"`
+	ProfileImageURL string     `json:"profile_image_url,omitempty"`
+	WorkingHours    []byte     `json:"working_hours,omitempty"`
+	IsActive        *bool      `json:"is_active,omitempty"`
+	EmploymentType  string     `json:"employment_type" validate:"required"`
+	JoinDate        time.Time  `json:"join_date" validate:"required"`
 	EndDate         *time.Time `json:"end_date,omitempty"`
-	CommissionRate  *float64  `json:"commission_rate,omitempty"`
+	CommissionRate  *float64   `json:"commission_rate,omitempty"`
 }
 
 // UpdateStaffInput is the input for updating a staff member
@@ -154,22 +154,22 @@ type ServiceAssignmentService interface {
 
 // AvailabilityException represents exceptions to a staff member's regular working hours
 type AvailabilityException struct {
-	ExceptionID   uuid.UUID  `json:"exception_id"`
-	BusinessID    uuid.UUID  `json:"business_id"`
-	StaffID       uuid.UUID  `json:"staff_id"`
-	ExceptionType string     `json:"exception_type"` // "time_off", "holiday", "custom_hours"
-	StartTime     time.Time  `json:"start_time"`
-	EndTime       time.Time  `json:"end_time"`
-	IsFullDay     bool       `json:"is_full_day"`
-	IsRecurring   bool       `json:"is_recurring"`
+	ExceptionID    uuid.UUID  `json:"exception_id"`
+	BusinessID     uuid.UUID  `json:"business_id"`
+	StaffID        uuid.UUID  `json:"staff_id"`
+	ExceptionType  string     `json:"exception_type"` // "time_off", "holiday", "custom_hours"
+	StartTime      time.Time  `json:"start_time"`
+	EndTime        time.Time  `json:"end_time"`
+	IsFullDay      bool       `json:"is_full_day"`
+	IsRecurring    bool       `json:"is_recurring"`
 	RecurrenceRule string     `json:"recurrence_rule,omitempty"` // iCalendar RRULE format
-	Notes         string     `json:"notes,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	CreatedBy     uuid.UUID  `json:"created_by"`
-	UpdatedAt     *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy     *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy     *uuid.UUID `json:"deleted_by,omitempty"`
+	Notes          string     `json:"notes,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+	UpdatedBy      *uuid.UUID `json:"updated_by,omitempty"`
+	DeletedAt      *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy      *uuid.UUID `json:"deleted_by,omitempty"`
 
 	// Expanded relationships (populated by service when needed)
 	Staff *Staff `json:"staff,omitempty"`
@@ -177,15 +177,15 @@ type AvailabilityException struct {
 
 // CreateAvailabilityExceptionInput is the input for creating an availability exception
 type CreateAvailabilityExceptionInput struct {
-	BusinessID    uuid.UUID `json:"business_id" validate:"required"`
-	StaffID       uuid.UUID `json:"staff_id" validate:"required"`
-	ExceptionType string    `json:"exception_type" validate:"required"`
-	StartTime     time.Time `json:"start_time" validate:"required"`
-	EndTime       time.Time `json:"end_time" validate:"required"`
-	IsFullDay     *bool     `json:"is_full_day,omitempty"`
-	IsRecurring   *bool     `json:"is_recurring,omitempty"`
+	BusinessID     uuid.UUID `json:"business_id" validate:"required"`
+	StaffID        uuid.UUID `json:"staff_id" validate:"required"`
+	ExceptionType  string    `json:"exception_type" validate:"required"`
+	StartTime      time.Time `json:"start_time" validate:"required"`
+	EndTime        time.Time `json:"end_time" validate:"required"`
+	IsFullDay      *bool     `json:"is_full_day,omitempty"`
+	IsRecurring    *bool     `json:"is_recurring,omitempty"`
 	RecurrenceRule string    `json:"recurrence_rule,omitempty"`
-	Notes         string    `json:"notes,omitempty"`
+	Notes          string    `json:"notes,omitempty"`
 }
 
 // UpdateAvailabilityExceptionInput is the input for updating an availability exception
@@ -227,23 +227,23 @@ type AvailabilityExceptionService interface {
 
 // StaffPerformance represents performance metrics for a staff member
 type StaffPerformance struct {
-	PerformanceID        uuid.UUID  `json:"performance_id"`
-	BusinessID           uuid.UUID  `json:"business_id"`
-	StaffID              uuid.UUID  `json:"staff_id"`
-	Period               string     `json:"period"` // "daily", "weekly", "monthly", "yearly"
-	StartDate            time.Time  `json:"start_date"`
-	EndDate              time.Time  `json:"end_date"`
-	TotalAppointments    int        `json:"total_appointments"`
-	CompletedAppointments int        `json:"completed_appointments"`
-	CanceledAppointments int        `json:"canceled_appointments"`
-	NoShowAppointments   int        `json:"no_show_appointments"`
-	TotalRevenue         float64    `json:"total_revenue"`
-	AverageRating        float64    `json:"average_rating,omitempty"`
-	ClientRetentionRate  float64    `json:"client_retention_rate,omitempty"`
-	NewClients           int        `json:"new_clients"`
-	ReturnClients        int        `json:"return_clients"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	PerformanceID         uuid.UUID `json:"performance_id"`
+	BusinessID            uuid.UUID `json:"business_id"`
+	StaffID               uuid.UUID `json:"staff_id"`
+	Period                string    `json:"period"` // "daily", "weekly", "monthly", "yearly"
+	StartDate             time.Time `json:"start_date"`
+	EndDate               time.Time `json:"end_date"`
+	TotalAppointments     int       `json:"total_appointments"`
+	CompletedAppointments int       `json:"completed_appointments"`
+	CanceledAppointments  int       `json:"canceled_appointments"`
+	NoShowAppointments    int       `json:"no_show_appointments"`
+	TotalRevenue          float64   `json:"total_revenue"`
+	AverageRating         float64   `json:"average_rating,omitempty"`
+	ClientRetentionRate   float64   `json:"client_retention_rate,omitempty"`
+	NewClients            int       `json:"new_clients"`
+	ReturnClients         int       `json:"return_clients"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 
 	// Expanded relationships (populated by service when needed)
 	Staff *Staff `json:"staff,omitempty"`

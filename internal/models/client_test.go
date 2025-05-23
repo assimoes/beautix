@@ -1,7 +1,6 @@
 package models_test
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -13,231 +12,141 @@ import (
 )
 
 func TestClientModel(t *testing.T) {
-	// Connect to the test database
-	testDB, err := database.NewTestDB(t)
+	// Connect to the test database using simple approach
+	testDB, err := database.NewSimpleTestDB(t)
 	require.NoError(t, err, "Failed to connect to test database")
 
-	// Auto-migrate the models
-	err = testDB.AutoMigrate(
-		&models.User{},
-		&models.Business{},
-		&models.Client{},
-		&models.ClientNote{},
-		&models.ClientDocument{},
-	)
-	require.NoError(t, err, "Failed to migrate models")
+	// Clean up all tables comprehensively to avoid foreign key issues
+	database.CleanupAllTables(t, testDB.DB)
 
 	// Create a user first
 	userID := uuid.New()
 	user := models.User{
 		BaseModel: models.BaseModel{
-			ID: userID,
+			ID:        userID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
-		ClerkID:   "clerk_client_test",
-		Email:     "client_test@example.com",
+		ClerkID:   "clerk_client_" + userID.String()[:8], // Unique ClerkID
+		Email:     "test@example.com",
 		FirstName: "Test",
 		LastName:  "User",
-		Phone:     "+1234567890",
-		Role:      models.UserRoleUser,
-		IsActive:  true,
+		Role:      models.UserRoleOwner,
 	}
 
-	// Save the user
-	err = testDB.Create(&user).Error
+	err = testDB.DB.Create(&user).Error
 	assert.NoError(t, err, "Failed to create user")
 
-	// Create a business
+	// Create a business first
 	businessID := uuid.New()
 	business := models.Business{
 		BaseModel: models.BaseModel{
-			ID: businessID,
+			ID:        businessID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
-		UserID:           userID,
-		Name:             "client-test-business",
-		DisplayName:      "Client Test Business",
-		Description:      "A business for testing client models",
-		Address:          "123 Main St",
-		City:             "Lisbon",
-		Country:          "Portugal",
-		PostalCode:       "1000-100",
-		Phone:            "+351123456789",
-		Email:            "contact@clienttestbusiness.com",
-		SubscriptionTier: models.SubscriptionTierPro,
-		IsActive:         true,
+		UserID:       userID,
+		Name:         "Client Test Business",
+		BusinessType: "salon",
+		Phone:        "+351123456789",
+		Email:        "business@example.com",
+		Country:      "Portugal",
+		TimeZone:     "Europe/Lisbon",
 	}
 
-	// Save the business
-	err = testDB.Create(&business).Error
+	err = testDB.DB.Create(&business).Error
 	assert.NoError(t, err, "Failed to create business")
 
 	// Create a client
 	clientID := uuid.New()
-	dob := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
+	dob := time.Date(1990, 5, 15, 0, 0, 0, 0, time.UTC)
 	client := models.Client{
 		BaseModel: models.BaseModel{
-			ID: clientID,
+			ID:        clientID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
-		BusinessID:      businessID,
-		UserID:          &userID,
-		FirstName:       "John",
-		LastName:        "Doe",
-		Email:           "john.doe@example.com",
-		Phone:           "+351987654321",
-		DateOfBirth:     &dob,
-		Address:         "456 Client St",
-		City:            "Lisbon",
-		Country:         "Portugal",
-		PostalCode:      "1000-200",
-		Notes:           "Regular client with monthly appointments",
-		ProfileImageURL: "https://example.com/client.jpg",
-		Tags:            models.ClientTags{"VIP", "Regular"},
-		Preferences: models.ClientPreferences{
-			PreferredDays:      []string{"monday", "wednesday"},
-			PreferredTimeStart: "14:00",
-			PreferredTimeEnd:   "18:00",
-			CommunicationPrefs: models.CommunicationPreferences{
-				AllowEmail:          true,
-				AllowSMS:            true,
-				AppointmentReminders: true,
-			},
-			LanguagePreference: "en",
-		},
-		HealthInfo: models.HealthInfo{
-			Allergies: []string{"Latex"},
-			Notes:     "No other health concerns",
-		},
-		Source:           "Referral",
+		BusinessID:       businessID,
+		UserID:           &userID,
+		FirstName:        "John",
+		LastName:         "Doe",
+		Email:            "john.doe@example.com",
+		Phone:            "+351987654321",
+		DateOfBirth:      &dob,
+		AddressLine1:     "456 Client St",
+		City:             "Lisbon",
+		Country:          "Portugal",
+		PostalCode:       "1000-200",
+		Notes:            "Regular client with monthly appointments",
+		Allergies:        "Latex, Nuts",
+		HealthConditions: "None",
+		ReferralSource:   "Website",
 		AcceptsMarketing: true,
 		IsActive:         true,
 	}
 
 	// Save the client
-	err = testDB.Create(&client).Error
+	err = testDB.DB.Create(&client).Error
 	assert.NoError(t, err, "Failed to create client")
 
-	// Verify client was created with ID
+	// Verify client was created
 	var savedClient models.Client
-	err = testDB.First(&savedClient, "id = ?", clientID).Error
+	err = testDB.DB.First(&savedClient, "id = ?", clientID).Error
 	assert.NoError(t, err, "Failed to find client")
 	assert.Equal(t, clientID, savedClient.ID)
 	assert.Equal(t, "John", savedClient.FirstName)
 	assert.Equal(t, "Doe", savedClient.LastName)
+	assert.Equal(t, "john.doe@example.com", savedClient.Email)
 	assert.Equal(t, "+351987654321", savedClient.Phone)
-
-	// Test JSONB fields
-	assert.Len(t, savedClient.Tags, 2)
-	assert.Contains(t, savedClient.Tags, "VIP")
-	assert.Equal(t, "en", savedClient.Preferences.LanguagePreference)
-	assert.True(t, savedClient.Preferences.CommunicationPrefs.AllowEmail)
-	assert.Contains(t, savedClient.HealthInfo.Allergies, "Latex")
+	assert.Equal(t, dob, *savedClient.DateOfBirth)
+	assert.Equal(t, "456 Client St", savedClient.AddressLine1)
+	assert.Equal(t, "Lisbon", savedClient.City)
+	assert.Equal(t, "Portugal", savedClient.Country)
+	assert.Equal(t, "1000-200", savedClient.PostalCode)
+	assert.Equal(t, "Regular client with monthly appointments", savedClient.Notes)
+	assert.Equal(t, "Latex, Nuts", savedClient.Allergies)
+	assert.Equal(t, "None", savedClient.HealthConditions)
+	assert.Equal(t, "Website", savedClient.ReferralSource)
+	assert.True(t, savedClient.AcceptsMarketing)
+	assert.True(t, savedClient.IsActive)
 
 	// Test loaded relationships
-	err = testDB.Preload("User").Preload("Business").First(&savedClient, "id = ?", clientID).Error
+	err = testDB.DB.Preload("User").Preload("Business").First(&savedClient, "id = ?", clientID).Error
 	assert.NoError(t, err, "Failed to find client with relationships")
-	assert.Equal(t, userID, *savedClient.UserID)
-	assert.Equal(t, "Test", savedClient.User.FirstName)
+	assert.NotNil(t, savedClient.UserID, "UserID should not be nil")
+	if savedClient.UserID != nil {
+		assert.Equal(t, userID, *savedClient.UserID)
+	}
+	assert.NotNil(t, savedClient.User, "User relationship should be loaded")
+	if savedClient.User != nil {
+		assert.Equal(t, "Test", savedClient.User.FirstName)
+	}
 	assert.Equal(t, businessID, savedClient.BusinessID)
-	assert.Equal(t, "Client Test Business", savedClient.Business.DisplayName)
+	assert.Equal(t, "Client Test Business", savedClient.Business.Name)
 
-	// Create a client note
-	noteID := uuid.New()
-	note := models.ClientNote{
-		BaseModel: models.BaseModel{
-			ID: noteID,
-		},
-		BusinessID: businessID,
-		ClientID:   clientID,
-		Title:      "Important Note",
-		Content:    "This client prefers a specific hair treatment",
-		IsPrivate:  true,
-		Pinned:     true,
-	}
+	// Test update client
+	savedClient.Phone = "+351999888777"
+	savedClient.UpdatedBy = &userID
+	err = testDB.DB.Save(&savedClient).Error
+	assert.NoError(t, err, "Failed to update client")
 
-	// Save the note
-	err = testDB.Create(&note).Error
-	assert.NoError(t, err, "Failed to create client note")
-
-	// Verify note was created
-	var savedNote models.ClientNote
-	err = testDB.Preload("Client").First(&savedNote, "id = ?", noteID).Error
-	assert.NoError(t, err, "Failed to find client note")
-	assert.Equal(t, noteID, savedNote.ID)
-	assert.Equal(t, "Important Note", savedNote.Title)
-	assert.Equal(t, clientID, savedNote.Client.ID)
-	assert.True(t, savedNote.IsPrivate)
-	assert.True(t, savedNote.Pinned)
-
-	// Create a client document
-	documentID := uuid.New()
-	now := time.Now()
-	expiresAt := now.AddDate(1, 0, 0)
-	document := models.ClientDocument{
-		BaseModel: models.BaseModel{
-			ID: documentID,
-		},
-		BusinessID:          businessID,
-		ClientID:            clientID,
-		DocumentName:        "Consent Form",
-		DocumentType:        "consent_form",
-		FileURL:             "https://example.com/documents/consent_form.pdf",
-		ContentType:         "application/pdf",
-		FileSize:            1024 * 100, // 100KB
-		IsSignatureRequired: true,
-		SignedAt:            &now,
-		ExpiresAt:           &expiresAt,
-		IsPrivate:           true,
-	}
-
-	// Save the document
-	err = testDB.Create(&document).Error
-	assert.NoError(t, err, "Failed to create client document")
-
-	// Verify document was created
-	var savedDocument models.ClientDocument
-	err = testDB.Preload("Client").First(&savedDocument, "id = ?", documentID).Error
-	assert.NoError(t, err, "Failed to find client document")
-	assert.Equal(t, documentID, savedDocument.ID)
-	assert.Equal(t, "Consent Form", savedDocument.DocumentName)
-	assert.Equal(t, clientID, savedDocument.Client.ID)
-	assert.True(t, savedDocument.IsSignatureRequired)
-	assert.NotNil(t, savedDocument.SignedAt)
-	assert.NotNil(t, savedDocument.ExpiresAt)
-
-	// Test serialization and deserialization of JSON fields
-	jsonBytes, err := json.Marshal(client)
-	assert.NoError(t, err, "Failed to marshal client to JSON")
-
-	var unmarshaledClient models.Client
-	err = json.Unmarshal(jsonBytes, &unmarshaledClient)
-	assert.NoError(t, err, "Failed to unmarshal client from JSON")
-	assert.Equal(t, client.FirstName, unmarshaledClient.FirstName)
-	assert.Equal(t, client.Tags, unmarshaledClient.Tags)
-	assert.Equal(t, client.Preferences.LanguagePreference, unmarshaledClient.Preferences.LanguagePreference)
-	assert.Equal(t, client.HealthInfo.Allergies, unmarshaledClient.HealthInfo.Allergies)
+	// Verify update
+	var updatedClient models.Client
+	err = testDB.DB.First(&updatedClient, "id = ?", clientID).Error
+	assert.NoError(t, err, "Failed to find updated client")
+	assert.Equal(t, "+351999888777", updatedClient.Phone)
 
 	// Test soft delete
-	err = testDB.Delete(&client).Error
+	err = testDB.DB.Delete(&savedClient).Error
 	assert.NoError(t, err, "Failed to soft delete client")
 
-	// Verify client is soft deleted
+	// Verify soft delete
 	var deletedClient models.Client
-	err = testDB.Unscoped().First(&deletedClient, "id = ?", clientID).Error
+	err = testDB.DB.Unscoped().First(&deletedClient, "id = ?", clientID).Error
 	assert.NoError(t, err, "Failed to find soft deleted client")
 	assert.False(t, deletedClient.DeletedAt.Time.IsZero(), "DeletedAt should be set")
 
-	// Verify we can't find the client with normal queries
-	err = testDB.First(&models.Client{}, "id = ?", clientID).Error
+	// Verify client is not found in normal queries
+	err = testDB.DB.First(&deletedClient, "id = ?", clientID).Error
 	assert.Error(t, err, "Should not find soft deleted client")
-
-	// Test cascade effect on notes and documents - they should still exist
-	// but won't be returned in normal queries due to the client being soft deleted
-	var noteCount int64
-	err = testDB.Model(&models.ClientNote{}).Where("client_id = ?", clientID).Count(&noteCount).Error
-	assert.NoError(t, err, "Failed to count notes")
-	assert.Equal(t, int64(1), noteCount, "Note should still exist")
-
-	var documentCount int64
-	err = testDB.Model(&models.ClientDocument{}).Where("client_id = ?", clientID).Count(&documentCount).Error
-	assert.NoError(t, err, "Failed to count documents")
-	assert.Equal(t, int64(1), documentCount, "Document should still exist")
 }

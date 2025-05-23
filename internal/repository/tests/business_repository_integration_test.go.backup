@@ -1,0 +1,494 @@
+package tests
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/assimoes/beautix/internal/domain"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// createTestUser creates a test user for business tests
+func createTestUserForBusiness(t *testing.T, suite *SimpleTestSuite, email string) *domain.User {
+	user := &domain.User{
+		Email:     email,
+		FirstName: "Test",
+		LastName:  "Owner",
+		Phone:     "+351123456789",
+		Role:      "owner",
+		IsActive:  true,
+	}
+
+	repos := suite.CreateTestRepositories()
+	err := repos.UserRepo.Create(context.Background(), user)
+	require.NoError(t, err)
+	return user
+}
+
+// TestCreateBusiness tests creating a business
+func TestBusinessRepositoryIntegration_CreateBusiness(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create owner user first
+	owner := createTestUserForBusiness(t, suite, "owner@testbusiness.com")
+
+	business := &domain.Business{
+		OwnerID:          owner.UserID,
+		BusinessName:     "Test Beauty Salon",
+		BusinessType:     "beauty",
+		Phone:            "+351123456789",
+		Email:            "info@testbeautysalon.com",
+		AddressLine1:     "123 Beauty Street",
+		City:             "Lisbon",
+		Region:           "Lisboa",
+		PostalCode:       "1000-001",
+		Country:          "Portugal",
+		TimeZone:         "Europe/Lisbon",
+		IsActive:         true,
+		SubscriptionPlan: "basic",
+	}
+
+	// Test creation
+	err := repos.BusinessRepo.Create(ctx, business)
+	require.NoError(t, err)
+	assert.NotEqual(t, uuid.Nil, business.BusinessID)
+	assert.False(t, business.CreatedAt.IsZero())
+	assert.False(t, business.UpdatedAt.IsZero())
+}
+
+// TestCreateBusinessDuplicate tests creating a business with duplicate name for same owner
+func TestBusinessRepositoryIntegration_CreateBusinessDuplicate(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create owner user first
+	owner := createTestUserForBusiness(t, suite, "owner2@testbusiness.com")
+
+	// Create first business
+	business1 := &domain.Business{
+		OwnerID:          owner.UserID,
+		BusinessName:     "Test Beauty Salon",
+		BusinessType:     "beauty",
+		Phone:            "+351123456789",
+		Email:            "info1@testbeautysalon.com",
+		Country:          "Portugal",
+		TimeZone:         "Europe/Lisbon",
+		IsActive:         true,
+		SubscriptionPlan: "basic",
+	}
+
+	err := repos.BusinessRepo.Create(ctx, business1)
+	require.NoError(t, err)
+
+	// Try to create second business with same name for same owner
+	business2 := &domain.Business{
+		OwnerID:          owner.UserID,
+		BusinessName:     "Test Beauty Salon", // Same name
+		BusinessType:     "beauty",
+		Phone:            "+351987654321",
+		Email:            "info2@testbeautysalon.com",
+		Country:          "Portugal",
+		TimeZone:         "Europe/Lisbon",
+		IsActive:         true,
+		SubscriptionPlan: "basic",
+	}
+
+	err = repos.BusinessRepo.Create(ctx, business2)
+	assert.Error(t, err, "Should fail due to unique constraint on business name per owner")
+}
+
+// TestGetBusinessByID tests retrieving a business by ID
+func TestBusinessRepositoryIntegration_GetBusinessByID(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create owner user and business first
+	owner := createTestUserForBusiness(t, suite, "owner3@testbusiness.com")
+
+	originalBusiness := &domain.Business{
+		OwnerID:          owner.UserID,
+		BusinessName:     "Get By ID Test Salon",
+		BusinessType:     "beauty",
+		Phone:            "+351123456789",
+		Email:            "getbyid@testbeautysalon.com",
+		AddressLine1:     "456 Test Avenue",
+		City:             "Porto",
+		Region:           "Porto",
+		PostalCode:       "4000-001",
+		Country:          "Portugal",
+		TimeZone:         "Europe/Lisbon",
+		IsActive:         true,
+		SubscriptionPlan: "premium",
+	}
+
+	err := repos.BusinessRepo.Create(ctx, originalBusiness)
+	require.NoError(t, err)
+
+	// Retrieve the business
+	retrievedBusiness, err := repos.BusinessRepo.GetByID(ctx, originalBusiness.BusinessID)
+	require.NoError(t, err)
+	require.NotNil(t, retrievedBusiness)
+
+	// Verify all fields
+	assert.Equal(t, originalBusiness.BusinessID, retrievedBusiness.BusinessID)
+	assert.Equal(t, originalBusiness.OwnerID, retrievedBusiness.OwnerID)
+	assert.Equal(t, originalBusiness.BusinessName, retrievedBusiness.BusinessName)
+	assert.Equal(t, originalBusiness.BusinessType, retrievedBusiness.BusinessType)
+	assert.Equal(t, originalBusiness.Phone, retrievedBusiness.Phone)
+	assert.Equal(t, originalBusiness.Email, retrievedBusiness.Email)
+	assert.Equal(t, originalBusiness.AddressLine1, retrievedBusiness.AddressLine1)
+	assert.Equal(t, originalBusiness.City, retrievedBusiness.City)
+	assert.Equal(t, originalBusiness.Region, retrievedBusiness.Region)
+	assert.Equal(t, originalBusiness.PostalCode, retrievedBusiness.PostalCode)
+	assert.Equal(t, originalBusiness.Country, retrievedBusiness.Country)
+	assert.Equal(t, originalBusiness.TimeZone, retrievedBusiness.TimeZone)
+	assert.Equal(t, originalBusiness.IsActive, retrievedBusiness.IsActive)
+	assert.Equal(t, originalBusiness.SubscriptionPlan, retrievedBusiness.SubscriptionPlan)
+}
+
+// TestGetBusinessByIDNotFound tests retrieving a non-existent business
+func TestBusinessRepositoryIntegration_GetBusinessByIDNotFound(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	nonExistentID := uuid.New()
+	business, err := repos.BusinessRepo.GetByID(ctx, nonExistentID)
+
+	assert.Error(t, err)
+	assert.Nil(t, business)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// TestGetBusinessesByOwnerID tests retrieving businesses by owner ID
+func TestBusinessRepositoryIntegration_GetBusinessesByOwnerID(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create owner user first
+	owner := createTestUserForBusiness(t, suite, "multiowner@testbusiness.com")
+
+	// Create multiple businesses for the same owner
+	businesses := []*domain.Business{
+		{
+			OwnerID:          owner.UserID,
+			BusinessName:     "First Test Salon",
+			BusinessType:     "beauty",
+			Phone:            "+351111111111",
+			Email:            "first@testbeautysalon.com",
+			Country:          "Portugal",
+			TimeZone:         "Europe/Lisbon",
+			IsActive:         true,
+			SubscriptionPlan: "basic",
+		},
+		{
+			OwnerID:          owner.UserID,
+			BusinessName:     "Second Test Salon",
+			BusinessType:     "beauty",
+			Phone:            "+351222222222",
+			Email:            "second@testbeautysalon.com",
+			Country:          "Portugal",
+			TimeZone:         "Europe/Lisbon",
+			IsActive:         true,
+			SubscriptionPlan: "premium",
+		},
+		{
+			OwnerID:          owner.UserID,
+			BusinessName:     "Third Test Salon",
+			BusinessType:     "beauty",
+			Phone:            "+351333333333",
+			Email:            "third@testbeautysalon.com",
+			Country:          "Portugal",
+			TimeZone:         "Europe/Lisbon",
+			IsActive:         false, // Inactive business
+			SubscriptionPlan: "basic",
+		},
+	}
+
+	// Create all businesses
+	for _, business := range businesses {
+		err := repos.BusinessRepo.Create(ctx, business)
+		require.NoError(t, err)
+	}
+
+	// Retrieve businesses by owner ID
+	retrievedBusinesses, err := repos.BusinessRepo.GetByOwnerID(ctx, owner.UserID)
+	require.NoError(t, err)
+	assert.Len(t, retrievedBusinesses, 3)
+
+	// Verify all businesses belong to the correct owner
+	for _, business := range retrievedBusinesses {
+		assert.Equal(t, owner.UserID, business.OwnerID)
+	}
+}
+
+// TestGetBusinessesByOwnerIDNotFound tests retrieving businesses for non-existent owner
+func TestBusinessRepositoryIntegration_GetBusinessesByOwnerIDNotFound(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	nonExistentOwnerID := uuid.New()
+	businesses, err := repos.BusinessRepo.GetByOwnerID(ctx, nonExistentOwnerID)
+
+	require.NoError(t, err)
+	assert.Empty(t, businesses)
+}
+
+// TestUpdateBusiness tests updating a business
+func TestBusinessRepositoryIntegration_UpdateBusiness(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create owner user and business first
+	owner := createTestUserForBusiness(t, suite, "updateowner@testbusiness.com")
+
+	business := &domain.Business{
+		OwnerID:          owner.UserID,
+		BusinessName:     "Original Business Name",
+		BusinessType:     "beauty",
+		Phone:            "+351123456789",
+		Email:            "original@testbeautysalon.com",
+		AddressLine1:     "Original Address",
+		City:             "Original City",
+		Country:          "Portugal",
+		TimeZone:         "Europe/Lisbon",
+		IsActive:         true,
+		SubscriptionPlan: "basic",
+	}
+
+	err := repos.BusinessRepo.Create(ctx, business)
+	require.NoError(t, err)
+
+	// Update the business
+	updateInput := &domain.UpdateBusinessInput{
+		BusinessName:     stringPtr("Updated Business Name"),
+		Phone:            stringPtr("+351987654321"),
+		Email:            stringPtr("updated@testbeautysalon.com"),
+		AddressLine1:     stringPtr("Updated Address"),
+		City:             stringPtr("Updated City"),
+		IsActive:         boolPtr(false),
+		SubscriptionPlan: stringPtr("premium"),
+	}
+
+	err = repos.BusinessRepo.Update(ctx, business.BusinessID, updateInput)
+	require.NoError(t, err)
+
+	// Retrieve the updated business
+	updatedBusiness, err := repos.BusinessRepo.GetByID(ctx, business.BusinessID)
+	require.NoError(t, err)
+
+	// Verify updates
+	assert.Equal(t, "Updated Business Name", updatedBusiness.BusinessName)
+	assert.Equal(t, "+351987654321", updatedBusiness.Phone)
+	assert.Equal(t, "updated@testbeautysalon.com", updatedBusiness.Email)
+	assert.Equal(t, "Updated Address", updatedBusiness.AddressLine1)
+	assert.Equal(t, "Updated City", updatedBusiness.City)
+	assert.False(t, updatedBusiness.IsActive)
+	assert.Equal(t, "premium", updatedBusiness.SubscriptionPlan)
+
+	// Verify unchanged fields
+	assert.Equal(t, business.OwnerID, updatedBusiness.OwnerID)
+	assert.Equal(t, business.BusinessType, updatedBusiness.BusinessType)
+	assert.Equal(t, business.Country, updatedBusiness.Country)
+	assert.Equal(t, business.TimeZone, updatedBusiness.TimeZone)
+}
+
+// TestUpdateBusinessNotFound tests updating a non-existent business
+func TestBusinessRepositoryIntegration_UpdateBusinessNotFound(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	nonExistentID := uuid.New()
+	updateInput := &domain.UpdateBusinessInput{
+		BusinessName: stringPtr("Updated Name"),
+	}
+
+	err := repos.BusinessRepo.Update(ctx, nonExistentID, updateInput)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// TestDeleteBusiness tests soft deleting a business
+func TestBusinessRepositoryIntegration_DeleteBusiness(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create owner user and business first
+	owner := createTestUserForBusiness(t, suite, "deleteowner@testbusiness.com")
+
+	business := &domain.Business{
+		OwnerID:          owner.UserID,
+		BusinessName:     "To Be Deleted Salon",
+		BusinessType:     "beauty",
+		Phone:            "+351123456789",
+		Email:            "delete@testbeautysalon.com",
+		Country:          "Portugal",
+		TimeZone:         "Europe/Lisbon",
+		IsActive:         true,
+		SubscriptionPlan: "basic",
+	}
+
+	err := repos.BusinessRepo.Create(ctx, business)
+	require.NoError(t, err)
+
+	// Delete the business
+	err = repos.BusinessRepo.Delete(ctx, business.BusinessID)
+	require.NoError(t, err)
+
+	// Try to retrieve the deleted business - should not be found due to soft delete
+	deletedBusiness, err := repos.BusinessRepo.GetByID(ctx, business.BusinessID)
+	assert.Error(t, err)
+	assert.Nil(t, deletedBusiness)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// TestDeleteBusinessNotFound tests deleting a non-existent business
+func TestBusinessRepositoryIntegration_DeleteBusinessNotFound(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	nonExistentID := uuid.New()
+	err := repos.BusinessRepo.Delete(ctx, nonExistentID)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// TestListBusinesses tests listing businesses with pagination
+func TestBusinessRepositoryIntegration_ListBusinesses(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Create multiple owners and businesses
+	businesses := make([]*domain.Business, 5)
+	for i := 0; i < 5; i++ {
+		owner := createTestUserForBusiness(t, suite, fmt.Sprintf("owner%d@testbusiness.com", i))
+
+		businesses[i] = &domain.Business{
+			OwnerID:          owner.UserID,
+			BusinessName:     fmt.Sprintf("Business %d", i+1),
+			BusinessType:     "beauty",
+			Phone:            fmt.Sprintf("+35112345678%d", i),
+			Email:            fmt.Sprintf("business%d@testbeautysalon.com", i+1),
+			Country:          "Portugal",
+			TimeZone:         "Europe/Lisbon",
+			IsActive:         true,
+			SubscriptionPlan: "basic",
+		}
+
+		err := repos.BusinessRepo.Create(ctx, businesses[i])
+		require.NoError(t, err)
+	}
+
+	// Test listing with pagination - first page
+	listedBusinesses, err := repos.BusinessRepo.List(ctx, 1, 3) // First page, 3 items
+	require.NoError(t, err)
+	assert.Len(t, listedBusinesses, 3)
+
+	// Businesses should be ordered by created_at DESC (newest first)
+	assert.True(t, listedBusinesses[0].CreatedAt.After(listedBusinesses[1].CreatedAt) ||
+		listedBusinesses[0].CreatedAt.Equal(listedBusinesses[1].CreatedAt))
+
+	// Test second page
+	listedBusinesses, err = repos.BusinessRepo.List(ctx, 2, 3) // Second page, 3 items
+	require.NoError(t, err)
+	assert.Len(t, listedBusinesses, 2) // Only 2 businesses left
+}
+
+// TestCountBusinesses tests counting businesses
+func TestBusinessRepositoryIntegration_CountBusinesses(t *testing.T) {
+	// Initialize the simple test suite
+	suite := NewSimpleTestSuite(t)
+	suite.CleanTables("appointments", "service_completions", "service_assignments", "availability_exceptions", "staff_performance", "clients", "staff", "services", "service_categories", "businesses", "users")
+
+	// Get repositories
+	repos := suite.CreateTestRepositories()
+	ctx := context.Background()
+
+	// Initially should be 0
+	count, err := repos.BusinessRepo.Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+
+	// Create some businesses
+	for i := 0; i < 3; i++ {
+		owner := createTestUserForBusiness(t, suite, fmt.Sprintf("countowner%d@testbusiness.com", i))
+
+		business := &domain.Business{
+			OwnerID:          owner.UserID,
+			BusinessName:     fmt.Sprintf("Count Business %d", i+1),
+			BusinessType:     "beauty",
+			Phone:            fmt.Sprintf("+35112345678%d", i),
+			Email:            fmt.Sprintf("countbusiness%d@testbeautysalon.com", i+1),
+			Country:          "Portugal",
+			TimeZone:         "Europe/Lisbon",
+			IsActive:         true,
+			SubscriptionPlan: "basic",
+		}
+
+		err := repos.BusinessRepo.Create(ctx, business)
+		require.NoError(t, err)
+	}
+
+	// Count should now be 3
+	count, err = repos.BusinessRepo.Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), count)
+}

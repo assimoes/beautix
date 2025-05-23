@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/assimoes/beautix/internal/domain"
 	"github.com/assimoes/beautix/internal/models"
@@ -25,7 +26,12 @@ func NewServiceCategoryRepository(db DBAdapter) domain.ServiceCategoryRepository
 func (r *ServiceCategoryRepository) Create(ctx context.Context, category *domain.ServiceCategory) error {
 	categoryModel := mapServiceCategoryDomainToModel(category)
 
-	if err := r.CreateWithAudit(ctx, &categoryModel, category.CreatedBy); err != nil {
+	// Set creation time (ServiceCategory table doesn't have audit fields)
+	if categoryModel.CreatedAt.IsZero() {
+		categoryModel.CreatedAt = time.Now()
+	}
+
+	if err := r.WithContext(ctx).Create(&categoryModel).Error; err != nil {
 		return fmt.Errorf("failed to create service category: %w", err)
 	}
 
@@ -58,14 +64,15 @@ func (r *ServiceCategoryRepository) Update(ctx context.Context, id uuid.UUID, na
 		return r.HandleNotFound(err, "service category", id)
 	}
 
-	// Apply updates
+	// Apply updates (ServiceCategory table doesn't have audit fields)
 	updates := map[string]interface{}{
 		"name":        name,
 		"description": description,
+		"updated_at":  time.Now(),
 	}
 
-	// Perform the update with audit
-	err = r.UpdateWithAudit(ctx, &categoryModel, updates, updatedBy)
+	// Perform the update without audit (ServiceCategory doesn't have audit fields)
+	err = r.WithContext(ctx).Model(&categoryModel).Updates(updates).Error
 	if err != nil {
 		return fmt.Errorf("failed to update service category: %w", err)
 	}
@@ -73,17 +80,10 @@ func (r *ServiceCategoryRepository) Update(ctx context.Context, id uuid.UUID, na
 	return nil
 }
 
-// Delete soft deletes a service category
+// Delete hard deletes a service category (no soft delete fields in table)
 func (r *ServiceCategoryRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
-	// First find the category to ensure it exists
-	var categoryModel models.ServiceCategory
-	err := r.WithContext(ctx).First(&categoryModel, "id = ?", id).Error
-	if err != nil {
-		return r.HandleNotFound(err, "service category", id)
-	}
-
-	// Perform soft delete with audit
-	err = r.SoftDeleteWithAudit(ctx, &categoryModel, deletedBy)
+	// Perform hard delete (ServiceCategory table doesn't have soft delete fields)
+	err := r.WithContext(ctx).Delete(&models.ServiceCategory{}, "id = ?", id).Error
 	if err != nil {
 		return fmt.Errorf("failed to delete service category: %w", err)
 	}
@@ -131,34 +131,16 @@ func mapServiceCategoryDomainToModel(sc *domain.ServiceCategory) *models.Service
 	}
 
 	categoryModel := &models.ServiceCategory{
-		BaseModel: models.BaseModel{
-			ID:        sc.ID,
-			CreatedAt: sc.CreatedAt,
-		},
+		ID:          sc.ID,
+		BusinessID:  sc.BusinessID,
 		Name:        sc.Name,
 		Description: sc.Description,
+		CreatedAt:   sc.CreatedAt,
 	}
 
 	// Handle optional/pointer fields
-	if sc.CreatedBy != nil {
-		categoryModel.CreatedBy = sc.CreatedBy
-	}
-
 	if sc.UpdatedAt != nil {
 		categoryModel.UpdatedAt = *sc.UpdatedAt
-	}
-
-	if sc.UpdatedBy != nil {
-		categoryModel.UpdatedBy = sc.UpdatedBy
-	}
-
-	if sc.DeletedAt != nil {
-		categoryModel.DeletedAt.Time = *sc.DeletedAt
-		categoryModel.DeletedAt.Valid = true
-	}
-
-	if sc.DeletedBy != nil {
-		categoryModel.DeletedBy = sc.DeletedBy
 	}
 
 	return categoryModel

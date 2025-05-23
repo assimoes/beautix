@@ -80,7 +80,7 @@ func (r *AvailabilityExceptionRepository) GetByStaffAndDateRange(ctx context.Con
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("staff_id = ?", staffID).
-		Where("start_time BETWEEN ? AND ? OR end_time BETWEEN ? AND ? OR (start_time <= ? AND end_time >= ?)", 
+		Where("start_time BETWEEN ? AND ? OR end_time BETWEEN ? AND ? OR (start_time <= ? AND end_time >= ?)",
 			start, end, start, end, start, end)
 
 	// Also include recurring exceptions
@@ -195,7 +195,7 @@ func (r *AvailabilityExceptionRepository) ListByBusinessAndDateRange(ctx context
 		Preload("Staff").
 		Preload("Staff.User").
 		Where("business_id = ?", businessID).
-		Where("start_time BETWEEN ? AND ? OR end_time BETWEEN ? AND ? OR (start_time <= ? AND end_time >= ?)", 
+		Where("start_time BETWEEN ? AND ? OR end_time BETWEEN ? AND ? OR (start_time <= ? AND end_time >= ?)",
 			start, end, start, end, start, end)
 
 	// Also include recurring exceptions

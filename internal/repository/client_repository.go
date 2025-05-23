@@ -69,18 +69,18 @@ func (r *ClientRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 	return mapClientModelsToDomainSlice(clientModels), nil
 }
 
-// GetByProviderAndEmail retrieves a client by provider ID and email
-func (r *ClientRepository) GetByProviderAndEmail(ctx context.Context, providerID uuid.UUID, email string) (*domain.Client, error) {
+// GetByBusinessAndEmail retrieves a client by business ID and email
+func (r *ClientRepository) GetByBusinessAndEmail(ctx context.Context, businessID uuid.UUID, email string) (*domain.Client, error) {
 	var clientModel models.Client
 
 	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
-		Where("business_id = ? AND email = ?", providerID, email).
+		Where("business_id = ? AND email = ?", businessID, email).
 		First(&clientModel).Error
 
 	if err != nil {
-		return nil, r.HandleNotFound(err, "client with provider ID "+providerID.String()+" and email "+email, uuid.Nil)
+		return nil, r.HandleNotFound(err, "client with business ID "+businessID.String()+" and email "+email, uuid.Nil)
 	}
 
 	return mapClientModelToDomain(&clientModel), nil
@@ -145,8 +145,8 @@ func (r *ClientRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy u
 	return nil
 }
 
-// Search searches for clients by query within a provider
-func (r *ClientRepository) Search(ctx context.Context, providerID uuid.UUID, query string, page, pageSize int) ([]*domain.Client, error) {
+// Search searches for clients by query within a business
+func (r *ClientRepository) Search(ctx context.Context, businessID uuid.UUID, query string, page, pageSize int) ([]*domain.Client, error) {
 	var clientModels []models.Client
 
 	offset := r.CalculateOffset(page, pageSize)
@@ -154,7 +154,7 @@ func (r *ClientRepository) Search(ctx context.Context, providerID uuid.UUID, que
 	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
-		Where("business_id = ?", providerID).
+		Where("business_id = ?", businessID).
 		Where("first_name ILIKE ? OR last_name ILIKE ? OR email ILIKE ? OR phone ILIKE ? OR CONCAT(first_name, ' ', last_name) ILIKE ?",
 			"%"+query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%").
 		Offset(offset).
@@ -169,8 +169,8 @@ func (r *ClientRepository) Search(ctx context.Context, providerID uuid.UUID, que
 	return mapClientModelsToDomainSlice(clientModels), nil
 }
 
-// ListByProvider retrieves a paginated list of clients by provider ID
-func (r *ClientRepository) ListByProvider(ctx context.Context, providerID uuid.UUID, page, pageSize int) ([]*domain.Client, error) {
+// ListByBusiness retrieves a paginated list of clients by business ID
+func (r *ClientRepository) ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*domain.Client, error) {
 	var clientModels []models.Client
 
 	offset := r.CalculateOffset(page, pageSize)
@@ -178,14 +178,14 @@ func (r *ClientRepository) ListByProvider(ctx context.Context, providerID uuid.U
 	err := r.WithContext(ctx).
 		Preload("User").
 		Preload("Business").
-		Where("business_id = ?", providerID).
+		Where("business_id = ?", businessID).
 		Offset(offset).
 		Limit(pageSize).
 		Order("created_at DESC").
 		Find(&clientModels).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list clients by provider: %w", err)
+		return nil, fmt.Errorf("failed to list clients by business: %w", err)
 	}
 
 	return mapClientModelsToDomainSlice(clientModels), nil
@@ -203,13 +203,13 @@ func (r *ClientRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-// CountByProvider counts clients by provider ID
-func (r *ClientRepository) CountByProvider(ctx context.Context, providerID uuid.UUID) (int64, error) {
+// CountByBusiness counts clients by business ID
+func (r *ClientRepository) CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error) {
 	var count int64
 
-	err := r.WithContext(ctx).Model(&models.Client{}).Where("business_id = ?", providerID).Count(&count).Error
+	err := r.WithContext(ctx).Model(&models.Client{}).Where("business_id = ?", businessID).Count(&count).Error
 	if err != nil {
-		return 0, fmt.Errorf("failed to count clients by provider: %w", err)
+		return 0, fmt.Errorf("failed to count clients by business: %w", err)
 	}
 
 	return count, nil
@@ -228,7 +228,7 @@ func mapClientDomainToModel(c *domain.Client) *models.Client {
 			ID:        c.ID,
 			CreatedAt: c.CreatedAt,
 		},
-		BusinessID: c.ProviderID,
+		BusinessID: c.BusinessID,
 		UserID:     c.UserID,
 		FirstName:  c.FirstName,
 		LastName:   c.LastName,
@@ -270,7 +270,7 @@ func mapClientModelToDomain(c *models.Client) *domain.Client {
 
 	client := &domain.Client{
 		ID:         c.ID,
-		ProviderID: c.BusinessID,
+		BusinessID: c.BusinessID,
 		UserID:     c.UserID,
 		FirstName:  c.FirstName,
 		LastName:   c.LastName,
@@ -308,7 +308,7 @@ func mapClientModelToDomain(c *models.Client) *domain.Client {
 	}
 
 	if c.Business.ID != uuid.Nil {
-		client.Provider = mapProviderModelToDomain(&c.Business)
+		client.Business = mapBusinessModelToDomain(&c.Business)
 	}
 
 	return client

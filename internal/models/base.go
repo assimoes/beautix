@@ -73,14 +73,14 @@ type TenantModel struct {
 // AuditModel is used for models that require detailed audit information
 type AuditModel struct {
 	BaseModel
-	LastAccessedAt *time.Time  `json:"last_accessed_at,omitempty"`
-	LastAccessedBy *uuid.UUID  `json:"last_accessed_by,omitempty"`
+	LastAccessedAt *time.Time `json:"last_accessed_at,omitempty"`
+	LastAccessedBy *uuid.UUID `json:"last_accessed_by,omitempty"`
 }
 
 // RegisterModels registers all models with GORM
 func RegisterModels(db interface{}) error {
 	var gormDB *gorm.DB
-	
+
 	// Handle different types of database connections
 	switch dbConn := db.(type) {
 	case *gorm.DB:
@@ -90,7 +90,7 @@ func RegisterModels(db interface{}) error {
 	default:
 		return fmt.Errorf("invalid database connection type")
 	}
-	
+
 	// Auto-migrate models - only for development and testing
 	// In production, changes should be made via proper migrations
 	err := gormDB.AutoMigrate(
@@ -110,15 +110,10 @@ func RegisterModels(db interface{}) error {
 		&ServiceBundle{},
 		&ServiceBundleItem{},
 		&Client{},
-		&ClientNote{},
-		&ClientDocument{},
+		// &ClientNote{}, // TODO: not yet implemented in database
+		// &ClientDocument{}, // TODO: not yet implemented in database
 		&Appointment{},
-		&AppointmentService{},
-		&AppointmentPayment{},
-		&AppointmentForm{},
-		&AppointmentNote{},
-		&AppointmentReminder{},
-		&AppointmentFeedback{},
+		&ServiceCompletion{},
 	)
 	if err != nil {
 		return err

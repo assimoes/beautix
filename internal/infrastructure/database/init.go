@@ -34,11 +34,11 @@ func RunMigrations(config *configs.Config) error {
 	}
 
 	log.Println("Database connected successfully")
-	
+
 	// Using the migrate package would go here in a real implementation
 	// For now, we'll report success without attempting to run migrations
 	log.Println("Migration step skipped for now")
-	
+
 	return nil
 }
 

@@ -31,14 +31,14 @@ func NewTransactionTestSuite(t *testing.T) *TransactionTestSuite {
 
 	// Start a transaction
 	tx := testDB.Begin()
-	
+
 	teardown := func() {
 		// Always rollback the transaction
 		tx.Rollback()
 	}
-	
+
 	t.Cleanup(teardown)
-	
+
 	return &TransactionTestSuite{
 		DB:       testDB,
 		Tx:       tx,
@@ -53,27 +53,31 @@ func NewTransactionTestSuite(t *testing.T) *TransactionTestSuite {
 func (ts *TransactionTestSuite) CreateTestRepositories() *TestRepositories {
 	// Create a DB adapter that wraps our transaction
 	txAdapter := NewDBAdapter(ts.Tx)
-	
+
 	return &TestRepositories{
-		StaffRepo:                  repository.NewStaffRepository(txAdapter),
-		ServiceAssignmentRepo:      repository.NewServiceAssignmentRepository(txAdapter),
-		AvailabilityExceptionRepo:  repository.NewAvailabilityExceptionRepository(txAdapter),
-		StaffPerformanceRepo:       repository.NewStaffPerformanceRepository(txAdapter),
-		ClientRepo:                 repository.NewClientRepository(txAdapter),
-		ServiceRepo:                repository.NewServiceRepository(txAdapter),
-		ServiceCategoryRepo:        repository.NewServiceCategoryRepository(txAdapter),
+		StaffRepo:                 repository.NewStaffRepository(txAdapter),
+		ServiceAssignmentRepo:     repository.NewServiceAssignmentRepository(txAdapter),
+		AvailabilityExceptionRepo: repository.NewAvailabilityExceptionRepository(txAdapter),
+		StaffPerformanceRepo:      repository.NewStaffPerformanceRepository(txAdapter),
+		ClientRepo:                repository.NewClientRepository(txAdapter),
+		ServiceRepo:               repository.NewServiceRepository(txAdapter),
+		ServiceCategoryRepo:       repository.NewServiceCategoryRepository(txAdapter),
+		AppointmentRepo:           repository.NewAppointmentRepository(txAdapter),
+		ServiceCompletionRepo:     repository.NewServiceCompletionRepository(txAdapter),
 	}
 }
 
 // TestRepositories contains all repository implementations for testing
 type TestRepositories struct {
-	StaffRepo                  domain.StaffRepository
-	ServiceAssignmentRepo      domain.ServiceAssignmentRepository
-	AvailabilityExceptionRepo  domain.AvailabilityExceptionRepository
-	StaffPerformanceRepo       domain.StaffPerformanceRepository
-	ClientRepo                 domain.ClientRepository
-	ServiceRepo                domain.ServiceRepository
-	ServiceCategoryRepo        domain.ServiceCategoryRepository
+	StaffRepo                 domain.StaffRepository
+	ServiceAssignmentRepo     domain.ServiceAssignmentRepository
+	AvailabilityExceptionRepo domain.AvailabilityExceptionRepository
+	StaffPerformanceRepo      domain.StaffPerformanceRepository
+	ClientRepo                domain.ClientRepository
+	ServiceRepo               domain.ServiceRepository
+	ServiceCategoryRepo       domain.ServiceCategoryRepository
+	AppointmentRepo           domain.AppointmentRepository
+	ServiceCompletionRepo     domain.ServiceCompletionRepository
 }
 
 // CreateTestData creates a complete set of test data (user, business, staff, client, service, category)
@@ -82,47 +86,47 @@ func (ts *TransactionTestSuite) CreateTestData() *TestData {
 	user := createTestUserTx(ts.t, ts.Tx)
 	business := createTestBusinessTx(ts.t, ts.Tx, user.ID)
 	staff := createTestStaffTx(ts.t, ts.Tx, business.ID, user.ID)
-	
+
 	// Create a client with a reference to the user ID
 	createdBy := user.ID
 	userID := user.ID
 	client := createTestClientTx(ts.t, ts.Tx, business.ID, &userID, &createdBy)
-	
+
 	// Create a service category and service
-	category := createTestServiceCategoryTx(ts.t, ts.Tx, &createdBy)
+	category := createTestServiceCategoryTx(ts.t, ts.Tx, business.ID, &createdBy)
 	categoryID := category.ID
 	service := createTestServiceTx(ts.t, ts.Tx, business.ID, &categoryID, &createdBy)
-	
+
 	return &TestData{
-		User:           user,
-		Business:       business,
-		Staff:          staff,
-		Client:         client,
+		User:            user,
+		Business:        business,
+		Staff:           staff,
+		Client:          client,
 		ServiceCategory: category,
-		Service:        service,
+		Service:         service,
 	}
 }
 
 // TestData contains common test data used by tests
 type TestData struct {
-	User           *models.User
-	Business       *models.Business
-	Staff          *models.Staff
-	Client         *models.Client
+	User            *models.User
+	Business        *models.Business
+	Staff           *models.Staff
+	Client          *models.Client
 	ServiceCategory *models.ServiceCategory
-	Service        *models.Service
+	Service         *models.Service
 }
 
 // CreateTestDataWithAppointment creates test data including an appointment
 // Only use this when the appointments table exists in the schema
 func (ts *TransactionTestSuite) CreateTestDataWithAppointment() *TestDataWithAppointment {
 	baseData := ts.CreateTestData()
-	
+
 	// Create an appointment
 	startTime := time.Now().Add(24 * time.Hour).Truncate(time.Hour) // Tomorrow at the start of the hour
 	createdBy := baseData.User.ID
 	appointment := createTestAppointmentTx(ts.t, ts.Tx, baseData.Business.ID, baseData.Client.ID, startTime, &createdBy)
-	
+
 	return &TestDataWithAppointment{
 		TestData:    *baseData,
 		Appointment: appointment,

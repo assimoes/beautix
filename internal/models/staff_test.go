@@ -13,21 +13,22 @@ import (
 )
 
 func TestStaffModel(t *testing.T) {
-	// Connect to the test database
-	testDB, err := database.NewTestDB(t)
+	// Connect to the test database using simple approach
+	testDB, err := database.NewSimpleTestDB(t)
 	require.NoError(t, err, "Failed to connect to test database")
 
-	// Auto-migrate the models
-	err = testDB.AutoMigrate(&models.User{}, &models.Business{}, &models.Staff{}, &models.ServiceAssignment{}, &models.AvailabilityException{}, &models.StaffPerformance{})
-	require.NoError(t, err, "Failed to migrate models")
+	// Clean up all tables comprehensively to avoid foreign key issues
+	database.CleanupAllTables(t, testDB.DB)
 
 	// Create a user first (since staff requires a user)
 	userID := uuid.New()
 	user := models.User{
 		BaseModel: models.BaseModel{
-			ID: userID,
+			ID:        userID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
-		ClerkID:   "clerk_staff_test",
+		ClerkID:   "clerk_staff_" + userID.String()[:8], // Unique ClerkID
 		Email:     "staff_test@example.com",
 		FirstName: "Staff",
 		LastName:  "Member",
@@ -37,19 +38,21 @@ func TestStaffModel(t *testing.T) {
 	}
 
 	// Save the user
-	err = testDB.Create(&user).Error
+	err = testDB.DB.Create(&user).Error
 	assert.NoError(t, err, "Failed to create user")
 
 	// Create a business (since staff requires a business)
 	businessID := uuid.New()
 	business := models.Business{
 		BaseModel: models.BaseModel{
-			ID: businessID,
+			ID:        businessID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
 		UserID:           userID,
 		Name:             "staff-salon-1",
 		DisplayName:      "Staff Salon Example",
-		Description:      "A salon for testing staff models",
+		BusinessType:     "salon",
 		Address:          "123 Main St",
 		City:             "Lisbon",
 		Country:          "Portugal",
@@ -61,7 +64,7 @@ func TestStaffModel(t *testing.T) {
 	}
 
 	// Save the business
-	err = testDB.Create(&business).Error
+	err = testDB.DB.Create(&business).Error
 	assert.NoError(t, err, "Failed to create business")
 
 	// Create staff
@@ -69,27 +72,29 @@ func TestStaffModel(t *testing.T) {
 	joinDate := time.Now().Add(-30 * 24 * time.Hour) // 30 days ago
 	staff := models.Staff{
 		BaseModel: models.BaseModel{
-			ID: staffID,
+			ID:        staffID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
-		BusinessID:     businessID,
-		UserID:         userID,
-		Position:       "Senior Stylist",
-		Bio:            "An experienced hair stylist with 5 years of experience",
-		SpecialtyAreas: models.SpecialtyAreas{"Hair Coloring", "Hair Cutting", "Styling"},
+		BusinessID:      businessID,
+		UserID:          userID,
+		Position:        "Senior Stylist",
+		Bio:             "An experienced hair stylist with 5 years of experience",
+		SpecialtyAreas:  models.SpecialtyAreas{"Hair Coloring", "Hair Cutting", "Styling"},
 		ProfileImageURL: "https://example.com/staff/profile.jpg",
-		IsActive:       true,
-		EmploymentType: models.StaffEmploymentTypeFull,
-		JoinDate:       joinDate,
-		CommissionRate: 25.00, // 25%
+		IsActive:        true,
+		EmploymentType:  models.StaffEmploymentTypeFull,
+		JoinDate:        joinDate,
+		CommissionRate:  25.00, // 25%
 	}
 
 	// Save the staff
-	err = testDB.Create(&staff).Error
+	err = testDB.DB.Create(&staff).Error
 	assert.NoError(t, err, "Failed to create staff")
 
 	// Verify staff was created with ID
 	var savedStaff models.Staff
-	err = testDB.First(&savedStaff, "id = ?", staffID).Error
+	err = testDB.DB.First(&savedStaff, "id = ?", staffID).Error
 	assert.NoError(t, err, "Failed to find staff")
 	assert.Equal(t, staffID, savedStaff.ID)
 	assert.Equal(t, "Senior Stylist", savedStaff.Position)
@@ -101,7 +106,7 @@ func TestStaffModel(t *testing.T) {
 	assert.Contains(t, savedStaff.SpecialtyAreas, "Hair Coloring")
 
 	// Test loaded relationships
-	err = testDB.Preload("User").Preload("Business").First(&savedStaff, "id = ?", staffID).Error
+	err = testDB.DB.Preload("User").Preload("Business").First(&savedStaff, "id = ?", staffID).Error
 	assert.NoError(t, err, "Failed to find staff with relationships")
 	assert.Equal(t, userID, savedStaff.User.ID)
 	assert.Equal(t, "Staff", savedStaff.User.FirstName)
@@ -113,7 +118,9 @@ func TestStaffModel(t *testing.T) {
 	tomorrow := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour)
 	exception := models.AvailabilityException{
 		BaseModel: models.BaseModel{
-			ID: exceptionID,
+			ID:        exceptionID,
+			CreatedBy: &userID,
+			UpdatedBy: &userID,
 		},
 		BusinessID:    businessID,
 		StaffID:       staffID,
@@ -125,12 +132,12 @@ func TestStaffModel(t *testing.T) {
 	}
 
 	// Save the exception
-	err = testDB.Create(&exception).Error
+	err = testDB.DB.Create(&exception).Error
 	assert.NoError(t, err, "Failed to create availability exception")
 
 	// Verify exception was created
 	var savedException models.AvailabilityException
-	err = testDB.Preload("Staff").First(&savedException, "id = ?", exceptionID).Error
+	err = testDB.DB.Preload("Staff").First(&savedException, "id = ?", exceptionID).Error
 	assert.NoError(t, err, "Failed to find availability exception")
 	assert.Equal(t, exceptionID, savedException.ID)
 	assert.Equal(t, models.ExceptionTypeTimeOff, savedException.ExceptionType)
@@ -142,11 +149,9 @@ func TestStaffModel(t *testing.T) {
 	firstDayOfMonth := time.Now().Truncate(24 * time.Hour)
 	firstDayOfMonth = time.Date(firstDayOfMonth.Year(), firstDayOfMonth.Month(), 1, 0, 0, 0, 0, firstDayOfMonth.Location())
 	lastDayOfMonth := firstDayOfMonth.AddDate(0, 1, -1)
-	
+
 	performance := models.StaffPerformance{
-		BaseModel: models.BaseModel{
-			ID: performanceID,
-		},
+		ID:                    performanceID,
 		BusinessID:            businessID,
 		StaffID:               staffID,
 		Period:                models.PerformancePeriodMonthly,
@@ -164,12 +169,12 @@ func TestStaffModel(t *testing.T) {
 	}
 
 	// Save the performance record
-	err = testDB.Create(&performance).Error
+	err = testDB.DB.Create(&performance).Error
 	assert.NoError(t, err, "Failed to create staff performance")
 
 	// Verify performance was created
 	var savedPerformance models.StaffPerformance
-	err = testDB.Preload("Staff").First(&savedPerformance, "id = ?", performanceID).Error
+	err = testDB.DB.Preload("Staff").First(&savedPerformance, "id = ?", performanceID).Error
 	assert.NoError(t, err, "Failed to find staff performance")
 	assert.Equal(t, performanceID, savedPerformance.ID)
 	assert.Equal(t, models.PerformancePeriodMonthly, savedPerformance.Period)
@@ -188,28 +193,28 @@ func TestStaffModel(t *testing.T) {
 	assert.Equal(t, staff.SpecialtyAreas, unmarshaledStaff.SpecialtyAreas)
 
 	// Test soft delete
-	err = testDB.Delete(&staff).Error
+	err = testDB.DB.Delete(&staff).Error
 	assert.NoError(t, err, "Failed to soft delete staff")
 
 	// Verify staff is soft deleted
 	var deletedStaff models.Staff
-	err = testDB.Unscoped().First(&deletedStaff, "id = ?", staffID).Error
+	err = testDB.DB.Unscoped().First(&deletedStaff, "id = ?", staffID).Error
 	assert.NoError(t, err, "Failed to find soft deleted staff")
 	assert.False(t, deletedStaff.DeletedAt.Time.IsZero(), "DeletedAt should be set")
 
 	// Verify we can't find the staff with normal queries
-	err = testDB.First(&models.Staff{}, "id = ?", staffID).Error
+	err = testDB.DB.First(&models.Staff{}, "id = ?", staffID).Error
 	assert.Error(t, err, "Should not find soft deleted staff")
 
 	// Verify cascade effect - exceptions and performance should still exist
 	// since they are related to business as well and may be needed for historical purposes
 	var exceptionCount int64
-	err = testDB.Model(&models.AvailabilityException{}).Where("staff_id = ?", staffID).Count(&exceptionCount).Error
+	err = testDB.DB.Model(&models.AvailabilityException{}).Where("staff_id = ?", staffID).Count(&exceptionCount).Error
 	assert.NoError(t, err, "Failed to count exceptions")
 	assert.Equal(t, int64(1), exceptionCount, "Exception should still exist")
 
 	var performanceCount int64
-	err = testDB.Model(&models.StaffPerformance{}).Where("staff_id = ?", staffID).Count(&performanceCount).Error
+	err = testDB.DB.Model(&models.StaffPerformance{}).Where("staff_id = ?", staffID).Count(&performanceCount).Error
 	assert.NoError(t, err, "Failed to count performance records")
 	assert.Equal(t, int64(1), performanceCount, "Performance record should still exist")
 }

@@ -188,12 +188,12 @@ air-install:
 # Target: test - Run tests
 test:
 	@echo "Running tests..."
-	@go test ./... -count=1
+	@go test ./... -count=1 -p 1
 
 # Target: test-coverage - Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	@go test -coverprofile=coverage.out ./... -count=1
+	@go test -coverprofile=coverage.out ./... -count=1 -p 1
 	@go tool cover -html=coverage.out
 
 # Target: lint - Run linter

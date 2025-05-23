@@ -10,6 +10,7 @@ import (
 // ServiceCategory represents a category for services
 type ServiceCategory struct {
 	ID          uuid.UUID  `json:"id"`
+	BusinessID  uuid.UUID  `json:"business_id"`
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -22,28 +23,28 @@ type ServiceCategory struct {
 
 // Service represents a beauty service offered by a provider
 type Service struct {
-	ID          uuid.UUID     `json:"id"`
-	ProviderID  uuid.UUID     `json:"provider_id"`
-	CategoryID  *uuid.UUID    `json:"category_id,omitempty"`
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Duration    int           `json:"duration"` // in minutes
-	Price       float64       `json:"price"`
-	CreatedAt   time.Time     `json:"created_at"`
-	CreatedBy   *uuid.UUID    `json:"created_by,omitempty"`
-	UpdatedAt   *time.Time    `json:"updated_at,omitempty"`
-	UpdatedBy   *uuid.UUID    `json:"updated_by,omitempty"`
-	DeletedAt   *time.Time    `json:"deleted_at,omitempty"`
-	DeletedBy   *uuid.UUID    `json:"deleted_by,omitempty"`
-	
+	ID          uuid.UUID  `json:"id"`
+	BusinessID  uuid.UUID  `json:"business_id"`
+	CategoryID  *uuid.UUID `json:"category_id,omitempty"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Duration    int        `json:"duration"` // in minutes
+	Price       float64    `json:"price"`
+	CreatedAt   time.Time  `json:"created_at"`
+	CreatedBy   *uuid.UUID `json:"created_by,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	UpdatedBy   *uuid.UUID `json:"updated_by,omitempty"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy   *uuid.UUID `json:"deleted_by,omitempty"`
+
 	// Expanded relationships (populated by service when needed)
-	Provider  *Provider        `json:"provider,omitempty"`
-	Category  *ServiceCategory `json:"category,omitempty"`
+	Business *Business        `json:"business,omitempty"`
+	Category *ServiceCategory `json:"category,omitempty"`
 }
 
 // CreateServiceInput is the input for creating a service
 type CreateServiceInput struct {
-	ProviderID  uuid.UUID  `json:"provider_id" validate:"required"`
+	BusinessID  uuid.UUID  `json:"business_id" validate:"required"`
 	CategoryID  *uuid.UUID `json:"category_id"`
 	Name        string     `json:"name" validate:"required"`
 	Description string     `json:"description"`
@@ -76,10 +77,10 @@ type ServiceRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Service, error)
 	Update(ctx context.Context, id uuid.UUID, input *UpdateServiceInput, updatedBy uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListByProvider(ctx context.Context, providerID uuid.UUID, page, pageSize int) ([]*Service, error)
+	ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*Service, error)
 	ListByCategory(ctx context.Context, categoryID uuid.UUID, page, pageSize int) ([]*Service, error)
 	Count(ctx context.Context) (int64, error)
-	CountByProvider(ctx context.Context, providerID uuid.UUID) (int64, error)
+	CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
 }
 
 // ServiceCategoryService defines business logic for service category operations
@@ -98,8 +99,8 @@ type ServiceService interface {
 	GetService(ctx context.Context, id uuid.UUID) (*Service, error)
 	UpdateService(ctx context.Context, id uuid.UUID, input *UpdateServiceInput, updatedBy uuid.UUID) error
 	DeleteService(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListServicesByProvider(ctx context.Context, providerID uuid.UUID, page, pageSize int) ([]*Service, error)
+	ListServicesByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*Service, error)
 	ListServicesByCategory(ctx context.Context, categoryID uuid.UUID, page, pageSize int) ([]*Service, error)
 	CountServices(ctx context.Context) (int64, error)
-	CountServicesByProvider(ctx context.Context, providerID uuid.UUID) (int64, error)
+	CountServicesByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
 }

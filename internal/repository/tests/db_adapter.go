@@ -17,3 +17,5 @@ func NewDBAdapter(tx *gorm.DB) *database.DB {
 	// This is safe because database.DB simply wraps gorm.DB
 	return &database.DB{DB: tx}
 }
+
+// MockDB implementation removed - using integration tests with real database instead
