@@ -2,127 +2,151 @@ package domain
 
 import (
 	"context"
-	"time"
+	"errors"
 
-	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// Common domain errors
+var (
+	ErrValidation = errors.New("validation error")
 )
 
 // User represents a user in the system
 type User struct {
-	UserID             uuid.UUID  `json:"user_id"`
-	Email              string     `json:"email"`
-	ClerkID            uuid.UUID  `json:"clerk_id"`
-	FirstName          string     `json:"first_name"`
-	LastName           string     `json:"last_name"`
-	Phone              string     `json:"phone,omitempty"`
-	Role               string     `json:"role"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
-	LastLogin          *time.Time `json:"last_login,omitempty"`
-	IsActive           bool       `json:"is_active"`
-	EmailVerified      bool       `json:"email_verified"`
-	LanguagePreference string     `json:"language_preference"`
+	BaseModel
+	Email     string   `gorm:"not null;uniqueIndex" json:"email"`
+	ClerkID   *string  `gorm:"uniqueIndex" json:"clerk_id,omitempty"`
+	FirstName string   `gorm:"not null;size:100" json:"first_name"`
+	LastName  string   `gorm:"not null;size:100" json:"last_name"`
+	Phone     *string  `gorm:"size:50" json:"phone,omitempty"`
+	IsActive  bool     `gorm:"not null;default:true" json:"is_active"`
+
+	// Relationships
+	Businesses           []Business           `gorm:"foreignKey:UserID" json:"businesses,omitempty"`
+	StaffPositions       []Staff              `gorm:"foreignKey:UserID" json:"staff_positions,omitempty"` // Staff positions this user holds at businesses
+	ConnectedAccounts    []UserConnectedAccount `gorm:"foreignKey:UserID" json:"connected_accounts,omitempty"`
 }
 
-// CreateUserInput is the input for creating a user
-type CreateUserInput struct {
-	Email              string `json:"email" validate:"required,email"`
-	Password           string `json:"password" validate:"required,min=8"`
-	FirstName          string `json:"first_name" validate:"required"`
-	LastName           string `json:"last_name" validate:"required"`
-	Phone              string `json:"phone,omitempty"`
-	Role               string `json:"role" validate:"required,oneof=admin owner staff user"`
-	LanguagePreference string `json:"language_preference,omitempty"`
+// UserConnectedAccount represents external account connections (OAuth providers)
+type UserConnectedAccount struct {
+	BaseModel
+	UserID       string `gorm:"not null;type:uuid" json:"user_id"`
+	ProviderType string `gorm:"not null;size:50" json:"provider_type"`
+	ProviderID   string `gorm:"not null;size:255" json:"provider_id"`
+	IsActive     bool   `gorm:"not null;default:true" json:"is_active"`
+
+	// Relationships
+	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user"`
 }
 
-// UpdateUserInput is the input for updating a user
-type UpdateUserInput struct {
-	Email              *string `json:"email,omitempty" validate:"omitempty,email"`
-	Password           *string `json:"password,omitempty" validate:"omitempty,min=8"`
-	FirstName          *string `json:"first_name,omitempty"`
-	LastName           *string `json:"last_name,omitempty"`
-	Phone              *string `json:"phone,omitempty"`
-	IsActive           *bool   `json:"is_active,omitempty"`
-	EmailVerified      *bool   `json:"email_verified,omitempty"`
-	LanguagePreference *string `json:"language_preference,omitempty"`
+// TableName returns the table name for User
+func (User) TableName() string {
+	return "users"
 }
 
-// UserRepository defines the methods to interact with the user data store
+// TableName returns the table name for UserConnectedAccount
+func (UserConnectedAccount) TableName() string {
+	return "user_connected_accounts"
+}
+
+// GetFullName returns the user's full name
+func (u User) GetFullName() string {
+	return u.FirstName + " " + u.LastName
+}
+
+// IsOwnerOfBusiness returns true if the user is the owner of the given business
+func (u User) IsOwnerOfBusiness(businessID string) bool {
+	for _, business := range u.Businesses {
+		if business.ID == businessID {
+			return true
+		}
+	}
+	return false
+}
+
+// GetBusinessRole returns the user's role in the given business
+func (u User) GetBusinessRole(businessID string) *BusinessRole {
+	// Check if user is the business owner
+	for _, business := range u.Businesses {
+		if business.ID == businessID {
+			role := BusinessRoleOwner
+			return &role
+		}
+	}
+
+	// Check if user has a staff position in the business
+	for _, staffPosition := range u.StaffPositions {
+		if staffPosition.BusinessID == businessID && staffPosition.IsActive {
+			return &staffPosition.Role
+		}
+	}
+
+	return nil
+}
+
+// CanAccessBusiness returns true if the user can access the given business
+func (u User) CanAccessBusiness(businessID string) bool {
+	// Check if user owns the business
+	if u.IsOwnerOfBusiness(businessID) {
+		return true
+	}
+
+	// Check if user has active staff position in the business
+	for _, staffPosition := range u.StaffPositions {
+		if staffPosition.BusinessID == businessID && staffPosition.IsActive {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasPermissionInBusiness checks if user has specific permission in a business
+func (u User) HasPermissionInBusiness(businessID string, permission string) bool {
+	role := u.GetBusinessRole(businessID)
+	if role == nil {
+		return false
+	}
+
+	// Owners have all permissions
+	if *role == BusinessRoleOwner {
+		return true
+	}
+
+	// For other roles, implement permission checking logic
+	// This can be extended based on specific permission requirements
+	return false
+}
+
+// Validate validates the user model
+func (u *User) Validate() error {
+	if u.Email == "" {
+		return ErrValidation
+	}
+	if u.FirstName == "" {
+		return ErrValidation
+	}
+	if u.LastName == "" {
+		return ErrValidation
+	}
+	return nil
+}
+
+// BeforeCreate is called before creating a user
+func (u *User) BeforeCreate(tx *gorm.DB) error {
+	// No role-related setup needed anymore
+	return nil
+}
+
+// UserRepository defines the repository interface for User
 type UserRepository interface {
-	Create(ctx context.Context, user *User) error
-	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
-	GetByEmail(ctx context.Context, email string) (*User, error)
-	Update(ctx context.Context, id uuid.UUID, input *UpdateUserInput) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	List(ctx context.Context, page, pageSize int) ([]*User, error)
-	Count(ctx context.Context) (int64, error)
+	BaseRepository[User]
+	FindByEmail(ctx context.Context, email string) (*User, error)
+	FindByClerkID(ctx context.Context, clerkID string) (*User, error)
+	UpdateClerkID(ctx context.Context, userID, clerkID string) error
+	GetWithBusinesses(ctx context.Context, userID string) (*User, error)
+	SearchUsers(ctx context.Context, query string, limit int) ([]*User, error)
 }
 
-// UserService defines the business logic for user operations
-type UserService interface {
-	CreateUser(ctx context.Context, input *CreateUserInput) (*User, error)
-	GetUser(ctx context.Context, id uuid.UUID) (*User, error)
-	GetUserByEmail(ctx context.Context, email string) (*User, error)
-	UpdateUser(ctx context.Context, id uuid.UUID, input *UpdateUserInput) error
-	DeleteUser(ctx context.Context, id uuid.UUID) error
-	ListUsers(ctx context.Context, page, pageSize int) ([]*User, error)
-	CountUsers(ctx context.Context) (int64, error)
-	Authenticate(ctx context.Context, email, password string) (*User, error)
-	GenerateToken(ctx context.Context, user *User, businessID *uuid.UUID) (string, error)
-	ValidateToken(ctx context.Context, token string) (*User, *uuid.UUID, error)
-}
-
-// TenantContext holds the tenant context for multi-tenancy
-type TenantContext struct {
-	BusinessID uuid.UUID
-}
-
-// Session represents a user authentication session
-type Session struct {
-	SessionID    uuid.UUID  `json:"session_id"`
-	UserID       uuid.UUID  `json:"user_id"`
-	BusinessID   *uuid.UUID `json:"business_id,omitempty"`
-	Token        string     `json:"token"`
-	IPAddress    string     `json:"ip_address,omitempty"`
-	UserAgent    string     `json:"user_agent,omitempty"`
-	ExpiresAt    time.Time  `json:"expires_at"`
-	CreatedAt    time.Time  `json:"created_at"`
-	LastActivity time.Time  `json:"last_activity"`
-}
-
-// SessionRepository defines methods for session management
-type SessionRepository interface {
-	Create(ctx context.Context, session *Session) error
-	GetByToken(ctx context.Context, token string) (*Session, error)
-	Update(ctx context.Context, id uuid.UUID, lastActivity time.Time) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	DeleteExpired(ctx context.Context) error
-	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
-}
-
-// PermissionScope represents a permission for a user in a business
-type PermissionScope struct {
-	ScopeID    uuid.UUID `json:"scope_id"`
-	UserID     uuid.UUID `json:"user_id"`
-	BusinessID uuid.UUID `json:"business_id"`
-	Resource   string    `json:"resource"`
-	Action     string    `json:"action"`
-	CreatedAt  time.Time `json:"created_at"`
-}
-
-// PermissionScopeRepository defines methods for permission scope management
-type PermissionScopeRepository interface {
-	Create(ctx context.Context, scope *PermissionScope) error
-	GetByUserAndBusiness(ctx context.Context, userID, businessID uuid.UUID) ([]*PermissionScope, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	DeleteByUserAndBusiness(ctx context.Context, userID, businessID uuid.UUID) error
-}
-
-// PermissionScopeService defines business logic for permission scope operations
-type PermissionScopeService interface {
-	CreatePermissionScope(ctx context.Context, userID, businessID uuid.UUID, resource, action string) (*PermissionScope, error)
-	GetUserPermissions(ctx context.Context, userID, businessID uuid.UUID) ([]*PermissionScope, error)
-	HasPermission(ctx context.Context, userID, businessID uuid.UUID, resource, action string) (bool, error)
-	RevokePermission(ctx context.Context, userID, businessID uuid.UUID, resource, action string) error
-	RevokeAllPermissions(ctx context.Context, userID, businessID uuid.UUID) error
-}
+// Note: Service interface is defined in the service layer to avoid circular dependencies

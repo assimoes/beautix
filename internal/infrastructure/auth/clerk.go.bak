@@ -1,0 +1,229 @@
+package auth
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/clerkinc/clerk-sdk-go/clerk"
+	"github.com/assimoes/beautix/configs"
+	"github.com/assimoes/beautix/pkg/errors"
+)
+
+// ClerkClient wraps the Clerk SDK client
+type ClerkClient struct {
+	client clerk.Client
+	config *configs.Config
+}
+
+// NewClerkClient creates a new Clerk client
+func NewClerkClient(config *configs.Config) (*ClerkClient, error) {
+	if config.Auth.ClerkSecretKey == "" {
+		return nil, fmt.Errorf("CLERK_SECRET_KEY is required")
+	}
+
+	client, err := clerk.NewClient(config.Auth.ClerkSecretKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Clerk client: %w", err)
+	}
+
+	return &ClerkClient{
+		client: client,
+		config: config,
+	}, nil
+}
+
+// ClerkUser represents user data from Clerk
+type ClerkUser struct {
+	ID                string                 `json:"id"`
+	Email             string                 `json:"email"`
+	FirstName         string                 `json:"first_name"`
+	LastName          string                 `json:"last_name"`
+	Phone             string                 `json:"phone"`
+	ProfileImageURL   string                 `json:"profile_image_url"`
+	EmailVerified     bool                   `json:"email_verified"`
+	PhoneVerified     bool                   `json:"phone_verified"`
+	ExternalAccounts  []ClerkExternalAccount `json:"external_accounts"`
+	CreatedAt         int64                  `json:"created_at"`
+	UpdatedAt         int64                  `json:"updated_at"`
+}
+
+// ClerkExternalAccount represents an external account from Clerk
+type ClerkExternalAccount struct {
+	ID           string `json:"id"`
+	Provider     string `json:"provider"`
+	ProviderID   string `json:"provider_id"`
+	EmailAddress string `json:"email_address"`
+}
+
+// GetUserByID retrieves a user by their Clerk ID
+func (c *ClerkClient) GetUserByID(ctx context.Context, userID string) (*ClerkUser, error) {
+	user, err := c.client.Users().Read(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user from Clerk: %w", err)
+	}
+
+	return convertClerkUser(user), nil
+}
+
+// GetUserByEmail retrieves a user by their email address
+func (c *ClerkClient) GetUserByEmail(ctx context.Context, email string) (*ClerkUser, error) {
+	users, err := c.client.Users().ListAll(clerk.ListAllUsersParams{
+		EmailAddresses: []string{email},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to search user by email: %w", err)
+	}
+
+	if len(users) == 0 {
+		return nil, errors.NewNotFoundError("user")
+	}
+
+	return convertClerkUser(users[0]), nil
+}
+
+// VerifyToken verifies a Clerk session token
+func (c *ClerkClient) VerifyToken(ctx context.Context, token string) (*ClerkUser, error) {
+	// Remove Bearer prefix if present
+	token = strings.TrimPrefix(token, "Bearer ")
+	
+	// Verify the session token
+	claims, err := c.client.VerifyToken(token)
+	if err != nil {
+		return nil, errors.NewUnauthorizedError("invalid token")
+	}
+
+	// Get the user ID from claims
+	userID, ok := claims["sub"].(string)
+	if !ok {
+		return nil, errors.NewUnauthorizedError("invalid token claims")
+	}
+
+	// Fetch the full user data
+	return c.GetUserByID(ctx, userID)
+}
+
+// CreateUser creates a new user in Clerk
+func (c *ClerkClient) CreateUser(ctx context.Context, email, firstName, lastName string) (*ClerkUser, error) {
+	params := clerk.CreateUserParams{
+		EmailAddresses: []string{email},
+		FirstName:      &firstName,
+		LastName:       &lastName,
+	}
+
+	user, err := c.client.Users().Create(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user in Clerk: %w", err)
+	}
+
+	return convertClerkUser(user), nil
+}
+
+// UpdateUser updates an existing user in Clerk
+func (c *ClerkClient) UpdateUser(ctx context.Context, userID string, params UpdateUserParams) (*ClerkUser, error) {
+	updateParams := clerk.UpdateUserParams{}
+	
+	if params.FirstName != nil {
+		updateParams.FirstName = params.FirstName
+	}
+	if params.LastName != nil {
+		updateParams.LastName = params.LastName
+	}
+	if params.Phone != nil {
+		updateParams.PhoneNumbers = []string{*params.Phone}
+	}
+
+	user, err := c.client.Users().Update(userID, updateParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update user in Clerk: %w", err)
+	}
+
+	return convertClerkUser(user), nil
+}
+
+// DeleteUser deletes a user from Clerk
+func (c *ClerkClient) DeleteUser(ctx context.Context, userID string) error {
+	err := c.client.Users().Delete(userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user from Clerk: %w", err)
+	}
+	return nil
+}
+
+// UpdateUserParams represents parameters for updating a user
+type UpdateUserParams struct {
+	FirstName *string
+	LastName  *string
+	Phone     *string
+}
+
+// ExtractTokenFromRequest extracts the Clerk token from an HTTP request
+func ExtractTokenFromRequest(r *http.Request) string {
+	// Check Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		return strings.TrimPrefix(authHeader, "Bearer ")
+	}
+
+	// Check __session cookie (Clerk's default session cookie)
+	cookie, err := r.Cookie("__session")
+	if err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+
+	return ""
+}
+
+// convertClerkUser converts a Clerk user to our ClerkUser struct
+func convertClerkUser(user *clerk.User) *ClerkUser {
+	clerkUser := &ClerkUser{
+		ID:              user.ID,
+		FirstName:       getStringValue(user.FirstName),
+		LastName:        getStringValue(user.LastName),
+		ProfileImageURL: user.ProfileImageURL,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+	}
+
+	// Get primary email
+	if len(user.EmailAddresses) > 0 {
+		for _, email := range user.EmailAddresses {
+			if email.ID == user.PrimaryEmailAddressID {
+				clerkUser.Email = email.EmailAddress
+				// Note: EmailVerified would need to be checked based on verification status
+				break
+			}
+		}
+	}
+
+	// Get primary phone
+	if len(user.PhoneNumbers) > 0 {
+		for _, phone := range user.PhoneNumbers {
+			if phone.ID == user.PrimaryPhoneNumberID {
+				clerkUser.Phone = phone.PhoneNumber
+				// Note: PhoneVerified would need to be checked based on verification status
+				break
+			}
+		}
+	}
+
+	// Convert external accounts
+	for _, account := range user.ExternalAccounts {
+		clerkUser.ExternalAccounts = append(clerkUser.ExternalAccounts, ClerkExternalAccount{
+			ID:         account.ID,
+			Provider:   account.Provider,
+			ProviderID: account.ProviderUserID,
+		})
+	}
+
+	return clerkUser
+}
+
+// getStringValue safely gets a string value from a pointer
+func getStringValue(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}

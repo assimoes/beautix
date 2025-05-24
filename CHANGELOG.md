@@ -2,34 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-- Database connection setup with GORM
-- Domain models for business entities
-- Infrastructure layer with database connection handling
-- Enhanced Make commands for database management
-- Data model implementation based on BeautyBiz MVP requirements
-- Staff domain model implementation with related entities (AvailabilityException, ServiceAssignment, StaffPerformance)
-- Unit tests for Staff models and associated entities
-- Unit tests for service assignments, availability exceptions, and staff performance metrics
-- Repository unit tests using mockery for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance
-- Repository implementations using GORM for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance
-- Integration tests for Staff, ServiceAssignment, AvailabilityException, and StaffPerformance repositories
-- Transaction-based testing framework for truly idempotent integration tests
-- Repository implementations for Client, Service, ServiceCategory, and Appointment with transaction-based testing
-- Extended test helpers to support new repository implementations
-- True test isolation for model tests using transaction-based approach
-
 ### Changed
-- Restructured code to follow Clean Architecture principles
-- Updated Makefile with improved database commands
-- Modified README with updated setup instructions
-- Simplified main.go to focus on database setup
+- Consolidated 16 separate migration files into a single comprehensive migration (000001_consolidated_schema)
+- Simplified database migration management by creating a fresh starting point for the schema
+- Removed all old migration files (000001 through 000016) to reduce complexity
+- Database schema now represents the complete state after all migrations up to version 16
+- Removed database-level overlap check triggers (appointment and resource booking) - these will be handled in the application layer
 
-### Removed
-- GraphQL server implementation (will be reimplemented later)
-- Mock services (replaced with actual database models)
+### Technical Details
+- The consolidated migration includes:
+  - All table definitions with their final structure
+  - All indexes and constraints
+  - Essential triggers and functions (updated_at timestamp management, inventory stock updates)
+  - Complete audit fields (created_at, created_by, updated_at, updated_by, deleted_at, deleted_by) on all tables
+  - Proper foreign key relationships
+  - PostgreSQL extensions (uuid-ossp, pgcrypto)
+  - Comments on tables and columns for documentation
+  - Business rule configuration tables (appointment_booking_rules) for application-level validation
+
+### Migration Instructions
+- For new installations: Run the single migration file 000001_consolidated_schema.up.sql
+- For existing installations: Ensure all migrations up to 000016 have been applied before using this consolidated version

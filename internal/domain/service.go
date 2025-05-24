@@ -2,105 +2,131 @@ package domain
 
 import (
 	"context"
-	"time"
-
-	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
-// ServiceCategory represents a category for services
-type ServiceCategory struct {
-	ID          uuid.UUID  `json:"id"`
-	BusinessID  uuid.UUID  `json:"business_id"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CreatedBy   *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy   *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy   *uuid.UUID `json:"deleted_by,omitempty"`
-}
-
-// Service represents a beauty service offered by a provider
+// Service represents a service offered by a business
 type Service struct {
-	ID          uuid.UUID  `json:"id"`
-	BusinessID  uuid.UUID  `json:"business_id"`
-	CategoryID  *uuid.UUID `json:"category_id,omitempty"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Duration    int        `json:"duration"` // in minutes
-	Price       float64    `json:"price"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CreatedBy   *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy   *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy   *uuid.UUID `json:"deleted_by,omitempty"`
+	BaseModel
+	BusinessID   string          `gorm:"not null;type:uuid;index" json:"business_id"`
+	CategoryID   *string         `gorm:"type:uuid;index" json:"category_id,omitempty"`
+	Name         string          `gorm:"not null;size:200" json:"name"`
+	Description  *string         `gorm:"type:text" json:"description,omitempty"`
+	Duration     int             `gorm:"not null;default:30" json:"duration"` // Duration in minutes
+	Price        decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"price"`
+	IsActive     bool            `gorm:"not null;default:true" json:"is_active"`
+	DisplayOrder int             `gorm:"not null;default:0" json:"display_order"`
+	PreparationTime *int         `gorm:"default:0" json:"preparation_time,omitempty"` // Buffer time before in minutes
+	CleanupTime     *int         `gorm:"default:0" json:"cleanup_time,omitempty"`     // Buffer time after in minutes
+	MaxAdvanceBooking *int       `gorm:"" json:"max_advance_booking,omitempty"`       // Days in advance
+	MinAdvanceBooking *int       `gorm:"default:0" json:"min_advance_booking,omitempty"` // Hours in advance
+	RequiresDeposit   bool       `gorm:"not null;default:false" json:"requires_deposit"`
+	DepositAmount     *decimal.Decimal `gorm:"type:decimal(10,2)" json:"deposit_amount,omitempty"`
 
-	// Expanded relationships (populated by service when needed)
-	Business *Business        `json:"business,omitempty"`
-	Category *ServiceCategory `json:"category,omitempty"`
+	// Relationships
+	Business Business        `gorm:"foreignKey:BusinessID;constraint:OnDelete:CASCADE" json:"business"`
+	Category *ServiceCategory `gorm:"foreignKey:CategoryID;constraint:OnDelete:SET NULL" json:"category,omitempty"`
 }
 
-// CreateServiceInput is the input for creating a service
-type CreateServiceInput struct {
-	BusinessID  uuid.UUID  `json:"business_id" validate:"required"`
-	CategoryID  *uuid.UUID `json:"category_id"`
-	Name        string     `json:"name" validate:"required"`
-	Description string     `json:"description"`
-	Duration    int        `json:"duration" validate:"required,min=1"`
-	Price       float64    `json:"price" validate:"required,min=0"`
+// TableName returns the table name for Service
+func (Service) TableName() string { return "services" }
+
+// Validate validates the service model
+func (s *Service) Validate() error {
+	if s.BusinessID == "" {
+		return ErrValidation
+	}
+	if s.Name == "" {
+		return ErrValidation
+	}
+	if s.Duration <= 0 {
+		return ErrValidation
+	}
+	if s.Price.IsNegative() {
+		return ErrValidation
+	}
+	if s.DepositAmount != nil && s.DepositAmount.IsNegative() {
+		return ErrValidation
+	}
+	return nil
 }
 
-// UpdateServiceInput is the input for updating a service
-type UpdateServiceInput struct {
-	CategoryID  *uuid.UUID `json:"category_id"`
-	Name        *string    `json:"name"`
-	Description *string    `json:"description"`
-	Duration    *int       `json:"duration" validate:"omitempty,min=1"`
-	Price       *float64   `json:"price" validate:"omitempty,min=0"`
+// GetFullName returns the full display name including category
+func (s *Service) GetFullName() string {
+	if s.Category != nil {
+		return s.Category.Name + " - " + s.Name
+	}
+	return s.Name
 }
 
-// ServiceCategoryRepository defines methods for service category data store
-type ServiceCategoryRepository interface {
-	Create(ctx context.Context, category *ServiceCategory) error
-	GetByID(ctx context.Context, id uuid.UUID) (*ServiceCategory, error)
-	Update(ctx context.Context, id uuid.UUID, name, description string, updatedBy uuid.UUID) error
-	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	List(ctx context.Context, page, pageSize int) ([]*ServiceCategory, error)
-	Count(ctx context.Context) (int64, error)
+// GetTotalDuration returns the total duration including preparation and cleanup
+func (s *Service) GetTotalDuration() int {
+	total := s.Duration
+	if s.PreparationTime != nil {
+		total += *s.PreparationTime
+	}
+	if s.CleanupTime != nil {
+		total += *s.CleanupTime
+	}
+	return total
 }
 
-// ServiceRepository defines methods for service data store
+// ServiceCategory represents a category of services
+type ServiceCategory struct {
+	BaseModel
+	BusinessID   string  `gorm:"not null;type:uuid;index" json:"business_id"`
+	Name         string  `gorm:"not null;size:100" json:"name"`
+	Description  *string `gorm:"type:text" json:"description,omitempty"`
+	DisplayOrder int     `gorm:"not null;default:0" json:"display_order"`
+	IsActive     bool    `gorm:"not null;default:true" json:"is_active"`
+	ColorCode    *string `gorm:"size:7" json:"color_code,omitempty"` // Hex color code for UI
+
+	// Relationships
+	Business Business `gorm:"foreignKey:BusinessID;constraint:OnDelete:CASCADE" json:"business"`
+	Services []Service `gorm:"foreignKey:CategoryID" json:"services,omitempty"`
+}
+
+// TableName returns the table name for ServiceCategory
+func (ServiceCategory) TableName() string { return "service_categories" }
+
+// Validate validates the service category model
+func (sc *ServiceCategory) Validate() error {
+	if sc.BusinessID == "" {
+		return ErrValidation
+	}
+	if sc.Name == "" {
+		return ErrValidation
+	}
+	return nil
+}
+
+// ServiceRepository defines the repository interface for Service
 type ServiceRepository interface {
-	Create(ctx context.Context, service *Service) error
-	GetByID(ctx context.Context, id uuid.UUID) (*Service, error)
-	Update(ctx context.Context, id uuid.UUID, input *UpdateServiceInput, updatedBy uuid.UUID) error
-	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*Service, error)
-	ListByCategory(ctx context.Context, categoryID uuid.UUID, page, pageSize int) ([]*Service, error)
-	Count(ctx context.Context) (int64, error)
-	CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
+	BaseRepository[Service]
+	FindByBusinessID(ctx context.Context, businessID string) ([]*Service, error)
+	FindByCategory(ctx context.Context, businessID, categoryID string) ([]*Service, error)
+	FindActiveByBusiness(ctx context.Context, businessID string) ([]*Service, error)
+	UpdatePricing(ctx context.Context, serviceID string, price decimal.Decimal) error
+	ReorderServices(ctx context.Context, businessID string, serviceOrders []ServiceOrder) error
+	ExistsByNameAndBusiness(ctx context.Context, name, businessID string) (bool, error)
 }
 
-// ServiceCategoryService defines business logic for service category operations
-type ServiceCategoryService interface {
-	CreateCategory(ctx context.Context, name, description string) (*ServiceCategory, error)
-	GetCategory(ctx context.Context, id uuid.UUID) (*ServiceCategory, error)
-	UpdateCategory(ctx context.Context, id uuid.UUID, name, description string, updatedBy uuid.UUID) error
-	DeleteCategory(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListCategories(ctx context.Context, page, pageSize int) ([]*ServiceCategory, error)
-	CountCategories(ctx context.Context) (int64, error)
+// ServiceCategoryRepository defines the repository interface for ServiceCategory
+type ServiceCategoryRepository interface {
+	BaseRepository[ServiceCategory]
+	FindByBusinessID(ctx context.Context, businessID string) ([]*ServiceCategory, error)
+	GetByDisplayOrder(ctx context.Context, businessID string) ([]*ServiceCategory, error)
+	ExistsByNameAndBusiness(ctx context.Context, name, businessID string) (bool, error)
+	ReorderCategories(ctx context.Context, businessID string, categoryOrders []CategoryOrder) error
 }
 
-// ServiceService defines business logic for service operations
-type ServiceService interface {
-	CreateService(ctx context.Context, input *CreateServiceInput) (*Service, error)
-	GetService(ctx context.Context, id uuid.UUID) (*Service, error)
-	UpdateService(ctx context.Context, id uuid.UUID, input *UpdateServiceInput, updatedBy uuid.UUID) error
-	DeleteService(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListServicesByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*Service, error)
-	ListServicesByCategory(ctx context.Context, categoryID uuid.UUID, page, pageSize int) ([]*Service, error)
-	CountServices(ctx context.Context) (int64, error)
-	CountServicesByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
+// Helper types for repository methods
+type ServiceOrder struct {
+	ServiceID    string `json:"service_id"`
+	DisplayOrder int    `json:"display_order"`
+}
+
+type CategoryOrder struct {
+	CategoryID   string `json:"category_id"`
+	DisplayOrder int    `json:"display_order"`
 }

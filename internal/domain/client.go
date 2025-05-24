@@ -3,77 +3,74 @@ package domain
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
-// Client represents a client of a service provider
+// Client represents a client of a business
 type Client struct {
-	ID         uuid.UUID  `json:"id"`
-	UserID     *uuid.UUID `json:"user_id,omitempty"` // Can be null if client doesn't have account
-	BusinessID uuid.UUID  `json:"business_id"`
-	FirstName  string     `json:"first_name"`
-	LastName   string     `json:"last_name"`
-	Email      string     `json:"email"`
-	Phone      string     `json:"phone"`
-	Notes      string     `json:"notes"`
-	CreatedAt  time.Time  `json:"created_at"`
-	CreatedBy  *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy  *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy  *uuid.UUID `json:"deleted_by,omitempty"`
+	BaseModel
+	BusinessID   string     `gorm:"not null;type:uuid;index" json:"business_id"`
+	UserID       *string    `gorm:"type:uuid;index" json:"user_id,omitempty"` // Optional link to user account
+	FirstName    string     `gorm:"not null;size:100" json:"first_name"`
+	LastName     string     `gorm:"not null;size:100" json:"last_name"`
+	Email        string     `gorm:"not null;size:255;index" json:"email"`
+	Phone        *string    `gorm:"size:20" json:"phone,omitempty"`
+	DateOfBirth  *time.Time `gorm:"" json:"date_of_birth,omitempty"`
+	Gender       *string    `gorm:"size:20" json:"gender,omitempty"`
+	Notes        *string    `gorm:"type:text" json:"notes,omitempty"`
+	Preferences  *string    `gorm:"type:jsonb;default:'{}'" json:"preferences,omitempty"` // JSON for client preferences
+	Allergies    *string    `gorm:"type:text" json:"allergies,omitempty"`
+	IsActive     bool       `gorm:"not null;default:true" json:"is_active"`
+	ReferralSource *string  `gorm:"size:100" json:"referral_source,omitempty"`
+	LastVisit    *time.Time `gorm:"" json:"last_visit,omitempty"`
+	TotalVisits  int        `gorm:"not null;default:0" json:"total_visits"`
+	TotalSpent   decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"total_spent"`
 
-	// Expanded relationships (populated by service when needed)
-	User     *User     `json:"user,omitempty"`
-	Business *Business `json:"business,omitempty"`
+	// Relationships
+	Business     Business     `gorm:"foreignKey:BusinessID;constraint:OnDelete:CASCADE" json:"business"`
+	User         *User        `gorm:"foreignKey:UserID;constraint:OnDelete:SET NULL" json:"user,omitempty"`
+	Appointments []Appointment `gorm:"foreignKey:ClientID" json:"appointments,omitempty"`
 }
 
-// CreateClientInput is the input for creating a client
-type CreateClientInput struct {
-	UserID     *uuid.UUID `json:"user_id"`
-	BusinessID uuid.UUID  `json:"business_id" validate:"required"`
-	FirstName  string     `json:"first_name" validate:"required"`
-	LastName   string     `json:"last_name" validate:"required"`
-	Email      string     `json:"email" validate:"omitempty,email"`
-	Phone      string     `json:"phone"`
-	Notes      string     `json:"notes"`
+// TableName returns the table name for Client
+func (Client) TableName() string { return "clients" }
+
+// Validate validates the client model
+func (c *Client) Validate() error {
+	if c.BusinessID == "" {
+		return ErrValidation
+	}
+	if c.FirstName == "" {
+		return ErrValidation
+	}
+	if c.LastName == "" {
+		return ErrValidation
+	}
+	if c.Email == "" {
+		return ErrValidation
+	}
+	return nil
 }
 
-// UpdateClientInput is the input for updating a client
-type UpdateClientInput struct {
-	UserID    *uuid.UUID `json:"user_id"`
-	FirstName *string    `json:"first_name"`
-	LastName  *string    `json:"last_name"`
-	Email     *string    `json:"email" validate:"omitempty,email"`
-	Phone     *string    `json:"phone"`
-	Notes     *string    `json:"notes"`
+// GetFullName returns the client's full name
+func (c *Client) GetFullName() string {
+	return c.FirstName + " " + c.LastName
 }
 
-// ClientRepository defines methods for client data store
+// UpdateVisitStats updates the last visit and total visits
+func (c *Client) UpdateVisitStats(visitTime time.Time, amount decimal.Decimal) {
+	c.LastVisit = &visitTime
+	c.TotalVisits++
+	c.TotalSpent = c.TotalSpent.Add(amount)
+}
+
+// ClientRepository defines the repository interface for Client
 type ClientRepository interface {
-	Create(ctx context.Context, client *Client) error
-	GetByID(ctx context.Context, id uuid.UUID) (*Client, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*Client, error)
-	GetByBusinessAndEmail(ctx context.Context, businessID uuid.UUID, email string) (*Client, error)
-	Update(ctx context.Context, id uuid.UUID, input *UpdateClientInput, updatedBy uuid.UUID) error
-	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*Client, error)
-	Search(ctx context.Context, businessID uuid.UUID, query string, page, pageSize int) ([]*Client, error)
-	Count(ctx context.Context) (int64, error)
-	CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
-}
-
-// ClientService defines business logic for client operations
-type ClientService interface {
-	CreateClient(ctx context.Context, input *CreateClientInput) (*Client, error)
-	GetClient(ctx context.Context, id uuid.UUID) (*Client, error)
-	GetClientsByUserID(ctx context.Context, userID uuid.UUID) ([]*Client, error)
-	GetClientByBusinessAndEmail(ctx context.Context, businessID uuid.UUID, email string) (*Client, error)
-	UpdateClient(ctx context.Context, id uuid.UUID, input *UpdateClientInput, updatedBy uuid.UUID) error
-	DeleteClient(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListClientsByBusiness(ctx context.Context, businessID uuid.UUID, page, pageSize int) ([]*Client, error)
-	SearchClients(ctx context.Context, businessID uuid.UUID, query string, page, pageSize int) ([]*Client, error)
-	CountClients(ctx context.Context) (int64, error)
-	CountClientsByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
+	BaseRepository[Client]
+	FindByBusinessID(ctx context.Context, businessID string) ([]*Client, error)
+	FindByEmail(ctx context.Context, email string) (*Client, error)
+	FindByUserID(ctx context.Context, userID string) ([]*Client, error)
+	FindByBusinessAndEmail(ctx context.Context, businessID, email string) (*Client, error)
+	ExistsByEmailAndBusiness(ctx context.Context, email, businessID string) (bool, error)
+	UpdateVisitStats(ctx context.Context, clientID string, visitTime time.Time, amount decimal.Decimal) error
 }

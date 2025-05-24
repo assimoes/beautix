@@ -36,6 +36,8 @@ type DatabaseConfig struct {
 type AuthConfig struct {
 	Secret     string
 	Expiration time.Duration
+	ClerkSecretKey string
+	ClerkPublishableKey string
 }
 
 // LoadConfig reads configuration from environment variables or .env file
@@ -52,6 +54,8 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("DB_SSLMODE", "disable")
 	viper.SetDefault("JWT_SECRET", "change_this_to_a_secure_secret_in_production")
 	viper.SetDefault("JWT_EXPIRATION", "24h")
+	viper.SetDefault("CLERK_SECRET_KEY", "")
+	viper.SetDefault("CLERK_PUBLISHABLE_KEY", "")
 
 	// Set environment variable prefix
 	viper.SetEnvPrefix("")
@@ -76,6 +80,8 @@ func LoadConfig() (*Config, error) {
 		},
 		Auth: AuthConfig{
 			Secret: viper.GetString("JWT_SECRET"),
+			ClerkSecretKey: viper.GetString("CLERK_SECRET_KEY"),
+			ClerkPublishableKey: viper.GetString("CLERK_PUBLISHABLE_KEY"),
 		},
 	}
 

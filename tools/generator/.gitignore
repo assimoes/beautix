@@ -1,0 +1,8 @@
+# Compiled binary
+beautix-generator
+beautix-generator.exe
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store

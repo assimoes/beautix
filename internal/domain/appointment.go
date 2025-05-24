@@ -3,147 +3,151 @@ package domain
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
-// Appointment represents a scheduled appointment between a client and staff for a service
+// AppointmentStatus represents the status of an appointment
+type AppointmentStatus string
+
+const (
+	AppointmentStatusScheduled AppointmentStatus = "scheduled"
+	AppointmentStatusConfirmed AppointmentStatus = "confirmed"
+	AppointmentStatusInProgress AppointmentStatus = "in_progress"
+	AppointmentStatusCompleted AppointmentStatus = "completed"
+	AppointmentStatusCancelled AppointmentStatus = "cancelled"
+	AppointmentStatusNoShow    AppointmentStatus = "no_show"
+	AppointmentStatusRescheduled AppointmentStatus = "rescheduled"
+)
+
+// Appointment represents a scheduled appointment
 type Appointment struct {
-	ID         uuid.UUID  `json:"id"`
-	BusinessID uuid.UUID  `json:"business_id"`
-	ClientID   uuid.UUID  `json:"client_id"`
-	StaffID    uuid.UUID  `json:"staff_id"`
-	ServiceID  uuid.UUID  `json:"service_id"`
-	StartTime  time.Time  `json:"start_time"`
-	EndTime    time.Time  `json:"end_time"`
-	Status     string     `json:"status"` // scheduled, confirmed, completed, cancelled, no-show
-	Notes      string     `json:"notes"`
-	CreatedAt  time.Time  `json:"created_at"`
-	CreatedBy  *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy  *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy  *uuid.UUID `json:"deleted_by,omitempty"`
+	BaseModel
+	BusinessID      string            `gorm:"not null;type:uuid;index" json:"business_id"`
+	ClientID        string            `gorm:"not null;type:uuid;index" json:"client_id"`
+	StaffID         string            `gorm:"not null;type:uuid;index" json:"staff_id"`
+	StartTime       time.Time         `gorm:"not null;index" json:"start_time"`
+	EndTime         time.Time         `gorm:"not null;index" json:"end_time"`
+	Status          AppointmentStatus `gorm:"not null;size:20;default:'scheduled';check:status IN ('scheduled','confirmed','in_progress','completed','cancelled','no_show','rescheduled')" json:"status"`
+	Title           *string           `gorm:"size:200" json:"title,omitempty"`
+	Notes           *string           `gorm:"type:text" json:"notes,omitempty"`
+	InternalNotes   *string           `gorm:"type:text" json:"internal_notes,omitempty"`
+	CancellationReason *string        `gorm:"type:text" json:"cancellation_reason,omitempty"`
+	TotalPrice      decimal.Decimal   `gorm:"type:decimal(10,2);not null;default:0" json:"total_price"`
+	DepositPaid     decimal.Decimal   `gorm:"type:decimal(10,2);not null;default:0" json:"deposit_paid"`
+	ReminderSent    bool              `gorm:"not null;default:false" json:"reminder_sent"`
+	ConfirmedAt     *time.Time        `gorm:"" json:"confirmed_at,omitempty"`
+	CompletedAt     *time.Time        `gorm:"" json:"completed_at,omitempty"`
+	CancelledAt     *time.Time        `gorm:"" json:"cancelled_at,omitempty"`
 
-	// Expanded relationships (populated by service when needed)
-	Business *Business `json:"business,omitempty"`
-	Client   *Client   `json:"client,omitempty"`
-	Staff    *Staff    `json:"staff,omitempty"`
-	Service  *Service  `json:"service,omitempty"`
+	// Relationships
+	Business Business `gorm:"foreignKey:BusinessID;constraint:OnDelete:CASCADE" json:"business"`
+	Client   Client   `gorm:"foreignKey:ClientID;constraint:OnDelete:CASCADE" json:"client"`
+	Staff    Staff    `gorm:"foreignKey:StaffID;constraint:OnDelete:CASCADE" json:"staff"`
 }
 
-// ServiceCompletion represents a completed service with financial tracking
-type ServiceCompletion struct {
-	ID                uuid.UUID  `json:"id"`
-	AppointmentID     uuid.UUID  `json:"appointment_id"`
-	PriceCharged      float64    `json:"price_charged"`
-	PaymentMethod     string     `json:"payment_method"`
-	ProviderConfirmed bool       `json:"provider_confirmed"`
-	ClientConfirmed   bool       `json:"client_confirmed"`
-	CompletionDate    *time.Time `json:"completion_date,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	CreatedBy         *uuid.UUID `json:"created_by,omitempty"`
-	UpdatedAt         *time.Time `json:"updated_at,omitempty"`
-	UpdatedBy         *uuid.UUID `json:"updated_by,omitempty"`
-	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
-	DeletedBy         *uuid.UUID `json:"deleted_by,omitempty"`
+// TableName returns the table name for Appointment
+func (Appointment) TableName() string { return "appointments" }
 
-	// Expanded relationships (populated by service when needed)
-	Appointment *Appointment `json:"appointment,omitempty"`
+// Validate validates the appointment model
+func (a *Appointment) Validate() error {
+	if a.BusinessID == "" {
+		return ErrValidation
+	}
+	if a.ClientID == "" {
+		return ErrValidation
+	}
+	if a.StaffID == "" {
+		return ErrValidation
+	}
+	if a.StartTime.IsZero() {
+		return ErrValidation
+	}
+	if a.EndTime.IsZero() {
+		return ErrValidation
+	}
+	if a.EndTime.Before(a.StartTime) {
+		return ErrValidation
+	}
+	if a.TotalPrice.IsNegative() {
+		return ErrValidation
+	}
+	if a.DepositPaid.IsNegative() {
+		return ErrValidation
+	}
+	return nil
 }
 
-// CreateAppointmentInput is the input for creating an appointment
-type CreateAppointmentInput struct {
-	BusinessID uuid.UUID `json:"business_id" validate:"required"`
-	ClientID   uuid.UUID `json:"client_id" validate:"required"`
-	StaffID    uuid.UUID `json:"staff_id" validate:"required"`
-	ServiceID  uuid.UUID `json:"service_id" validate:"required"`
-	StartTime  time.Time `json:"start_time" validate:"required"`
-	EndTime    time.Time `json:"end_time" validate:"required,gtfield=StartTime"`
-	Status     string    `json:"status" validate:"required,oneof=scheduled confirmed completed cancelled no-show"`
-	Notes      string    `json:"notes"`
+// GetDuration returns the appointment duration in minutes
+func (a *Appointment) GetDuration() int {
+	return int(a.EndTime.Sub(a.StartTime).Minutes())
 }
 
-// UpdateAppointmentInput is the input for updating an appointment
-type UpdateAppointmentInput struct {
-	ServiceID *uuid.UUID `json:"service_id"`
-	StartTime *time.Time `json:"start_time"`
-	EndTime   *time.Time `json:"end_time"`
-	Status    *string    `json:"status" validate:"omitempty,oneof=scheduled confirmed completed cancelled no-show"`
-	Notes     *string    `json:"notes"`
+// IsUpcoming returns true if the appointment is in the future
+func (a *Appointment) IsUpcoming() bool {
+	return a.StartTime.After(time.Now())
 }
 
-// CreateServiceCompletionInput is the input for creating a service completion
-type CreateServiceCompletionInput struct {
-	AppointmentID     uuid.UUID  `json:"appointment_id" validate:"required"`
-	PriceCharged      float64    `json:"price_charged" validate:"required,min=0"`
-	PaymentMethod     string     `json:"payment_method" validate:"required"`
-	ProviderConfirmed bool       `json:"provider_confirmed"`
-	ClientConfirmed   bool       `json:"client_confirmed"`
-	CompletionDate    *time.Time `json:"completion_date"`
+// IsPast returns true if the appointment is in the past
+func (a *Appointment) IsPast() bool {
+	return a.EndTime.Before(time.Now())
 }
 
-// UpdateServiceCompletionInput is the input for updating a service completion
-type UpdateServiceCompletionInput struct {
-	PriceCharged      *float64   `json:"price_charged" validate:"omitempty,min=0"`
-	PaymentMethod     *string    `json:"payment_method"`
-	ProviderConfirmed *bool      `json:"provider_confirmed"`
-	ClientConfirmed   *bool      `json:"client_confirmed"`
-	CompletionDate    *time.Time `json:"completion_date"`
+// CanBeCancelled returns true if the appointment can be cancelled
+func (a *Appointment) CanBeCancelled() bool {
+	return a.Status == AppointmentStatusScheduled || a.Status == AppointmentStatusConfirmed
 }
 
-// AppointmentRepository defines methods for appointment data store
+// CanBeCompleted returns true if the appointment can be marked as completed
+func (a *Appointment) CanBeCompleted() bool {
+	return a.Status == AppointmentStatusConfirmed || a.Status == AppointmentStatusInProgress
+}
+
+// MarkCompleted marks the appointment as completed
+func (a *Appointment) MarkCompleted() {
+	a.Status = AppointmentStatusCompleted
+	now := time.Now()
+	a.CompletedAt = &now
+}
+
+// MarkCancelled marks the appointment as cancelled
+func (a *Appointment) MarkCancelled(reason string) {
+	a.Status = AppointmentStatusCancelled
+	a.CancellationReason = &reason
+	now := time.Now()
+	a.CancelledAt = &now
+}
+
+// AppointmentRepository defines the repository interface for Appointment
 type AppointmentRepository interface {
-	Create(ctx context.Context, appointment *Appointment) error
-	GetByID(ctx context.Context, id uuid.UUID) (*Appointment, error)
-	Update(ctx context.Context, id uuid.UUID, input *UpdateAppointmentInput, updatedBy uuid.UUID) error
-	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListByBusiness(ctx context.Context, businessID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
-	ListByStaff(ctx context.Context, staffID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
-	ListByClient(ctx context.Context, clientID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
-	Count(ctx context.Context) (int64, error)
-	CountByBusiness(ctx context.Context, businessID uuid.UUID) (int64, error)
-	CountByStaff(ctx context.Context, staffID uuid.UUID) (int64, error)
-	CountByBusinessAndDateRange(ctx context.Context, businessID uuid.UUID, startDate, endDate time.Time) (int64, error)
-	CountByStaffAndDateRange(ctx context.Context, staffID uuid.UUID, startDate, endDate time.Time) (int64, error)
+	BaseRepository[Appointment]
+	FindByBusinessID(ctx context.Context, businessID string, filters AppointmentFilters) ([]*Appointment, error)
+	FindByClientID(ctx context.Context, clientID string) ([]*Appointment, error)
+	FindByStaffID(ctx context.Context, staffID string, dateRange DateRange) ([]*Appointment, error)
+	FindByDateRange(ctx context.Context, staffID string, start, end time.Time) ([]*Appointment, error)
+	CheckOverlap(ctx context.Context, staffID string, start, end time.Time, excludeID *string) (bool, error)
+	GetUpcomingByStaff(ctx context.Context, staffID string, limit int) ([]*Appointment, error)
+	GetDashboardData(ctx context.Context, businessID string, date time.Time) (*DashboardData, error)
+	GetCalendarView(ctx context.Context, businessID string, start, end time.Time) ([]*CalendarAppointment, error)
+	GetByStatus(ctx context.Context, businessID string, status AppointmentStatus) ([]*Appointment, error)
 }
 
-// ServiceCompletionRepository defines methods for service completion data store
-type ServiceCompletionRepository interface {
-	Create(ctx context.Context, completion *ServiceCompletion) error
-	GetByID(ctx context.Context, id uuid.UUID) (*ServiceCompletion, error)
-	GetByAppointmentID(ctx context.Context, appointmentID uuid.UUID) (*ServiceCompletion, error)
-	Update(ctx context.Context, id uuid.UUID, input *UpdateServiceCompletionInput, updatedBy uuid.UUID) error
-	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListByProvider(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*ServiceCompletion, error)
-	Count(ctx context.Context) (int64, error)
-	CountByProvider(ctx context.Context, providerID uuid.UUID) (int64, error)
-	GetProviderRevenue(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time) (float64, error)
+// Helper types for repository methods
+type AppointmentFilters struct {
+	Status    *AppointmentStatus `json:"status,omitempty"`
+	StaffID   *string           `json:"staff_id,omitempty"`
+	ServiceID *string           `json:"service_id,omitempty"`
+	DateRange *DateRange        `json:"date_range,omitempty"`
 }
 
-// AppointmentService defines business logic for appointment operations
-type AppointmentService interface {
-	CreateAppointment(ctx context.Context, input *CreateAppointmentInput) (*Appointment, error)
-	GetAppointment(ctx context.Context, id uuid.UUID) (*Appointment, error)
-	UpdateAppointment(ctx context.Context, id uuid.UUID, input *UpdateAppointmentInput, updatedBy uuid.UUID) error
-	DeleteAppointment(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListAppointmentsByProvider(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
-	ListAppointmentsByClient(ctx context.Context, clientID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*Appointment, error)
-	CountAppointments(ctx context.Context) (int64, error)
-	CountAppointmentsByProvider(ctx context.Context, providerID uuid.UUID) (int64, error)
-	CountAppointmentsByProviderAndDateRange(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time) (int64, error)
-	CheckAvailability(ctx context.Context, providerID uuid.UUID, startTime, endTime time.Time) (bool, error)
+type DateRange struct {
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
 }
 
-// ServiceCompletionService defines business logic for service completion operations
-type ServiceCompletionService interface {
-	CreateServiceCompletion(ctx context.Context, input *CreateServiceCompletionInput) (*ServiceCompletion, error)
-	GetServiceCompletion(ctx context.Context, id uuid.UUID) (*ServiceCompletion, error)
-	GetServiceCompletionByAppointmentID(ctx context.Context, appointmentID uuid.UUID) (*ServiceCompletion, error)
-	UpdateServiceCompletion(ctx context.Context, id uuid.UUID, input *UpdateServiceCompletionInput, updatedBy uuid.UUID) error
-	DeleteServiceCompletion(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
-	ListServiceCompletionsByProvider(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time, page, pageSize int) ([]*ServiceCompletion, error)
-	CountServiceCompletions(ctx context.Context) (int64, error)
-	CountServiceCompletionsByProvider(ctx context.Context, providerID uuid.UUID) (int64, error)
-	GetProviderRevenue(ctx context.Context, providerID uuid.UUID, startDate, endDate time.Time) (float64, error)
+type DashboardData struct {
+	// Dashboard data structure to be defined based on requirements
+}
+
+type CalendarAppointment struct {
+	// Calendar appointment structure to be defined based on requirements
 }

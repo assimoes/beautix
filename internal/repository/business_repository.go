@@ -2,215 +2,232 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	"github.com/assimoes/beautix/internal/domain"
-	"github.com/assimoes/beautix/internal/models"
-	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-// BusinessRepository implements the domain.BusinessRepository interface using GORM
-type BusinessRepository struct {
-	*BaseRepository
+// businessRepositoryImpl implements the BusinessRepository interface
+type businessRepositoryImpl struct {
+	*BaseRepositoryImpl[domain.Business]
 }
 
-// NewBusinessRepository creates a new instance of BusinessRepository
-func NewBusinessRepository(db DBAdapter) domain.BusinessRepository {
-	return &BusinessRepository{
-		BaseRepository: NewBaseRepository(db),
+// NewBusinessRepository creates a new business repository
+func NewBusinessRepository(db *gorm.DB) domain.BusinessRepository {
+	return &businessRepositoryImpl{
+		BaseRepositoryImpl: &BaseRepositoryImpl[domain.Business]{db: db},
 	}
 }
 
-// Create creates a new business
-func (r *BusinessRepository) Create(ctx context.Context, business *domain.Business) error {
-	businessModel := mapBusinessDomainToModel(business)
-
-	// Set created_by if available (from user context)
-	// For now, we'll set it to nil since business creation might not have an existing user context
-	if err := r.CreateWithAudit(ctx, businessModel, nil); err != nil {
-		return fmt.Errorf("failed to create business: %w", err)
-	}
-
-	// Update the domain entity with generated fields
-	business.BusinessID = businessModel.ID
-	business.CreatedAt = businessModel.CreatedAt
-	business.UpdatedAt = businessModel.UpdatedAt
-
-	return nil
+// FindByUserID finds businesses owned by a user
+func (r *businessRepositoryImpl) FindByUserID(ctx context.Context, userID string) ([]*domain.Business, error) {
+	var businesses []*domain.Business
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Find(&businesses).Error
+	return businesses, err
 }
 
-// GetByID retrieves a business by ID
-func (r *BusinessRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Business, error) {
-	var businessModel models.Business
-
-	err := r.WithContext(ctx).First(&businessModel, "id = ?", id).Error
-	if err != nil {
-		return nil, r.HandleNotFound(err, "business", id)
-	}
-
-	return mapBusinessModelToDomain(&businessModel), nil
+// FindByName finds businesses by name (case-insensitive)
+func (r *businessRepositoryImpl) FindByName(ctx context.Context, name string) ([]*domain.Business, error) {
+	var businesses []*domain.Business
+	err := r.db.WithContext(ctx).
+		Where("LOWER(name) LIKE ? AND deleted_at IS NULL", "%"+strings.ToLower(name)+"%").
+		Find(&businesses).Error
+	return businesses, err
 }
 
-// GetByOwnerID retrieves all businesses owned by a specific user
-func (r *BusinessRepository) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]*domain.Business, error) {
-	var businessModels []models.Business
-
-	err := r.WithContext(ctx).Where("user_id = ?", ownerID).Find(&businessModels).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to find businesses for owner %s: %w", ownerID, err)
-	}
-
-	return mapBusinessModelsToDomainSlice(businessModels), nil
+// ExistsByName checks if a business with the given name exists
+func (r *businessRepositoryImpl) ExistsByName(ctx context.Context, name string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.Business{}).
+		Where("LOWER(name) = ? AND deleted_at IS NULL", strings.ToLower(name)).
+		Count(&count).Error
+	return count > 0, err
 }
 
-// Update updates a business
-func (r *BusinessRepository) Update(ctx context.Context, id uuid.UUID, input *domain.UpdateBusinessInput) error {
-	// First find the business to ensure it exists
-	var businessModel models.Business
-	err := r.WithContext(ctx).First(&businessModel, "id = ?", id).Error
-	if err != nil {
-		return r.HandleNotFound(err, "business", id)
+// FindActiveBusinesses finds active businesses with pagination
+func (r *businessRepositoryImpl) FindActiveBusinesses(ctx context.Context, page, pageSize int) ([]*domain.Business, int64, error) {
+	var businesses []*domain.Business
+	var total int64
+	
+	// Count total active businesses
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Business{}).
+		Where("is_active = true AND deleted_at IS NULL").
+		Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
-
-	// Build updates map from input
-	updates := map[string]interface{}{}
-
-	if input.BusinessName != nil {
-		updates["name"] = *input.BusinessName
-		updates["display_name"] = *input.BusinessName
-	}
-
-	if input.BusinessType != nil {
-		// Note: BusinessType is not in models.Business
-		// This would need to be added to the model or handled separately
-	}
-
-	if input.TaxID != nil {
-		updates["tax_id"] = *input.TaxID
-	}
-
-	if input.Phone != nil {
-		updates["phone"] = *input.Phone
-	}
-
-	if input.Email != nil {
-		updates["email"] = *input.Email
-	}
-
-	if input.AddressLine1 != nil {
-		updates["address"] = *input.AddressLine1
-	}
-
-	if input.City != nil {
-		updates["city"] = *input.City
-	}
-
-	if input.Region != nil {
-		updates["state"] = *input.Region
-	}
-
-	if input.PostalCode != nil {
-		updates["postal_code"] = *input.PostalCode
-	}
-
-	if input.Country != nil {
-		updates["country"] = *input.Country
-	}
-
-	if input.TimeZone != nil {
-		updates["timezone"] = *input.TimeZone
-	}
-
-	if input.IsActive != nil {
-		updates["is_active"] = *input.IsActive
-	}
-
-	if input.SubscriptionPlan != nil {
-		updates["subscription_tier"] = models.SubscriptionTier(*input.SubscriptionPlan)
-	}
-
-	if input.BusinessHours != nil {
-		// Handle business hours update - need to update the settings JSONB field
-		var workingHours models.WorkingHours
-		err := workingHours.Scan(*input.BusinessHours)
-		if err == nil {
-			// Update the settings with new working hours
-			settings := businessModel.Settings
-			settings.WorkingHours = workingHours
-			updates["settings"] = settings
-		}
-	}
-
-	// For now, we'll assume updatedBy comes from context or is passed separately
-	// In a real implementation, this would be extracted from the authentication context
-	updatedBy := uuid.New() // Placeholder - should come from authenticated user context
-
-	err = r.UpdateWithAudit(ctx, &businessModel, updates, updatedBy)
-	if err != nil {
-		return fmt.Errorf("failed to update business: %w", err)
-	}
-
-	return nil
-}
-
-// Delete soft deletes a business
-func (r *BusinessRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	// First find the business to ensure it exists
-	var businessModel models.Business
-	err := r.WithContext(ctx).First(&businessModel, "id = ?", id).Error
-	if err != nil {
-		return r.HandleNotFound(err, "business", id)
-	}
-
-	// For now, we'll assume deletedBy comes from context
-	// In a real implementation, this would be extracted from the authentication context
-	deletedBy := uuid.New() // Placeholder - should come from authenticated user context
-
-	err = r.SoftDeleteWithAudit(ctx, &businessModel, deletedBy)
-	if err != nil {
-		return fmt.Errorf("failed to delete business: %w", err)
-	}
-
-	return nil
-}
-
-// List retrieves a paginated list of businesses
-func (r *BusinessRepository) List(ctx context.Context, page, pageSize int) ([]*domain.Business, error) {
-	var businessModels []models.Business
-
-	offset := r.CalculateOffset(page, pageSize)
-
-	err := r.WithContext(ctx).
+	
+	// Get paginated results
+	offset := (page - 1) * pageSize
+	err := r.db.WithContext(ctx).
+		Where("is_active = true AND deleted_at IS NULL").
 		Offset(offset).
 		Limit(pageSize).
-		Order("created_at DESC").
-		Find(&businessModels).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list businesses: %w", err)
-	}
-
-	return mapBusinessModelsToDomainSlice(businessModels), nil
+		Find(&businesses).Error
+		
+	return businesses, total, err
 }
 
-// Count counts all businesses
-func (r *BusinessRepository) Count(ctx context.Context) (int64, error) {
-	var count int64
-
-	err := r.WithContext(ctx).Model(&models.Business{}).Count(&count).Error
-	if err != nil {
-		return 0, fmt.Errorf("failed to count businesses: %w", err)
+// SearchByLocation finds businesses by city and country
+func (r *businessRepositoryImpl) SearchByLocation(ctx context.Context, city, country string) ([]*domain.Business, error) {
+	var businesses []*domain.Business
+	
+	query := r.db.WithContext(ctx).
+		Joins("JOIN business_locations bl ON businesses.id = bl.business_id").
+		Where("businesses.is_active = true AND businesses.deleted_at IS NULL AND bl.deleted_at IS NULL")
+	
+	if city != "" {
+		query = query.Where("LOWER(bl.city) = ?", strings.ToLower(city))
 	}
-
-	return count, nil
+	
+	if country != "" {
+		query = query.Where("LOWER(bl.country) = ?", strings.ToLower(country))
+	}
+	
+	err := query.Distinct().Find(&businesses).Error
+	return businesses, err
 }
 
-// Helper function to map slice of models to slice of domain entities
-func mapBusinessModelsToDomainSlice(businessModels []models.Business) []*domain.Business {
-	result := make([]*domain.Business, len(businessModels))
-	for i, model := range businessModels {
-		modelCopy := model // create a copy to avoid pointer issues
-		result[i] = mapBusinessModelToDomain(&modelCopy)
+// SearchByService finds businesses that offer a specific service
+func (r *businessRepositoryImpl) SearchByService(ctx context.Context, serviceName string) ([]*domain.Business, error) {
+	var businesses []*domain.Business
+	
+	err := r.db.WithContext(ctx).
+		Joins("JOIN services s ON businesses.id = s.business_id").
+		Where("businesses.is_active = true AND businesses.deleted_at IS NULL AND s.deleted_at IS NULL").
+		Where("LOWER(s.name) LIKE ?", "%"+strings.ToLower(serviceName)+"%").
+		Distinct().
+		Find(&businesses).Error
+		
+	return businesses, err
+}
+
+// GetBusinessWithDetails retrieves a business with all related data
+func (r *businessRepositoryImpl) GetBusinessWithDetails(ctx context.Context, businessID string) (*domain.Business, error) {
+	var business domain.Business
+	err := r.db.WithContext(ctx).
+		Preload("Locations").
+		Preload("Settings_").
+		Preload("User").
+		Where("id = ?", businessID).
+		First(&business).Error
+	if err != nil {
+		return nil, err
 	}
-	return result
+	return &business, nil
+}
+
+// GetWithLocations retrieves a business with its locations
+func (r *businessRepositoryImpl) GetWithLocations(ctx context.Context, businessID string) (*domain.Business, error) {
+	var business domain.Business
+	err := r.db.WithContext(ctx).
+		Preload("Locations", "deleted_at IS NULL").
+		Where("id = ?", businessID).
+		First(&business).Error
+	if err != nil {
+		return nil, err
+	}
+	return &business, nil
+}
+
+// WithTx returns a new repository instance with the given transaction
+func (r *businessRepositoryImpl) WithTx(tx *gorm.DB) domain.BaseRepository[domain.Business] {
+	return &BaseRepositoryImpl[domain.Business]{db: tx}
+}
+
+// businessLocationRepositoryImpl implements the BusinessLocationRepository interface
+type businessLocationRepositoryImpl struct {
+	*BaseRepositoryImpl[domain.BusinessLocation]
+}
+
+// NewBusinessLocationRepository creates a new business location repository
+func NewBusinessLocationRepository(db *gorm.DB) domain.BusinessLocationRepository {
+	return &businessLocationRepositoryImpl{
+		BaseRepositoryImpl: &BaseRepositoryImpl[domain.BusinessLocation]{db: db},
+	}
+}
+
+// FindByBusinessID finds all locations for a business
+func (r *businessLocationRepositoryImpl) FindByBusinessID(ctx context.Context, businessID string) ([]*domain.BusinessLocation, error) {
+	var locations []*domain.BusinessLocation
+	err := r.db.WithContext(ctx).
+		Where("business_id = ? AND deleted_at IS NULL", businessID).
+		Order("is_main DESC, name ASC").
+		Find(&locations).Error
+	return locations, err
+}
+
+// GetMainLocation retrieves the main location for a business
+func (r *businessLocationRepositoryImpl) GetMainLocation(ctx context.Context, businessID string) (*domain.BusinessLocation, error) {
+	var location domain.BusinessLocation
+	err := r.db.WithContext(ctx).
+		Where("business_id = ? AND is_main = true AND deleted_at IS NULL", businessID).
+		First(&location).Error
+	if err != nil {
+		return nil, err
+	}
+	return &location, nil
+}
+
+// SetMainLocation sets a location as the main location for a business
+func (r *businessLocationRepositoryImpl) SetMainLocation(ctx context.Context, businessID, locationID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// First, unset all main locations for this business
+		if err := tx.Model(&domain.BusinessLocation{}).
+			Where("business_id = ?", businessID).
+			Update("is_main", false).Error; err != nil {
+			return err
+		}
+		
+		// Then set the specified location as main
+		return tx.Model(&domain.BusinessLocation{}).
+			Where("id = ? AND business_id = ?", locationID, businessID).
+			Update("is_main", true).Error
+	})
+}
+
+// WithTx returns a new repository instance with the given transaction
+func (r *businessLocationRepositoryImpl) WithTx(tx *gorm.DB) domain.BaseRepository[domain.BusinessLocation] {
+	return &BaseRepositoryImpl[domain.BusinessLocation]{db: tx}
+}
+
+// businessSettingsRepositoryImpl implements the BusinessSettingsRepository interface
+type businessSettingsRepositoryImpl struct {
+	*BaseRepositoryImpl[domain.BusinessSettings]
+}
+
+// NewBusinessSettingsRepository creates a new business settings repository
+func NewBusinessSettingsRepository(db *gorm.DB) domain.BusinessSettingsRepository {
+	return &businessSettingsRepositoryImpl{
+		BaseRepositoryImpl: &BaseRepositoryImpl[domain.BusinessSettings]{db: db},
+	}
+}
+
+// GetByBusinessID retrieves settings for a business
+func (r *businessSettingsRepositoryImpl) GetByBusinessID(ctx context.Context, businessID string) (*domain.BusinessSettings, error) {
+	var settings domain.BusinessSettings
+	err := r.db.WithContext(ctx).
+		Where("business_id = ?", businessID).
+		First(&settings).Error
+	if err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+// UpdateByBusinessID updates settings for a business
+func (r *businessSettingsRepositoryImpl) UpdateByBusinessID(ctx context.Context, businessID string, settings *domain.BusinessSettings) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.BusinessSettings{}).
+		Where("business_id = ?", businessID).
+		Updates(settings).Error
+}
+
+// WithTx returns a new repository instance with the given transaction
+func (r *businessSettingsRepositoryImpl) WithTx(tx *gorm.DB) domain.BaseRepository[domain.BusinessSettings] {
+	return &BaseRepositoryImpl[domain.BusinessSettings]{db: tx}
 }

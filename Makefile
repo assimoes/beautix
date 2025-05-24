@@ -409,3 +409,8 @@ generate-mocks:
 tidy:
 	@echo "Tidying go modules..."
 	@go mod tidy
+
+# Target: generate - Run the code generator tool
+generate:
+	@echo "Running code generator..."
+	@cd tools/generator && go run .
