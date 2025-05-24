@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package graph_test
 
 import (
@@ -329,9 +332,9 @@ func TestUserMutationsIntegration(t *testing.T) {
 	// Note: activateUser and deactivateUser mutations are not implemented in the current schema
 	// This test can be re-enabled when those mutations are added
 	/*
-	t.Run("Activate and deactivate user", func(t *testing.T) {
-		// Test disabled - activateUser/deactivateUser mutations not in schema
-	})
+		t.Run("Activate and deactivate user", func(t *testing.T) {
+			// Test disabled - activateUser/deactivateUser mutations not in schema
+		})
 	*/
 }
 

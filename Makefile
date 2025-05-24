@@ -190,6 +190,30 @@ test:
 	@echo "Running tests..."
 	@go test ./... -count=1 -p 1
 
+test.integration:
+	@echo "Running all integration tests..."
+	@go test -v -tags=integration ./... -count=1
+
+test.graph:
+	@echo "Running GRAPHQL Integration Tests"
+	@go test ./pkg/graph/... -count=1 -p 1 -tags=integration
+
+test.svc:
+	@echo "Running Services Integration Tests"
+	@go test ./internal/service/... -count=1 -p 1 -tags=integration
+
+test.repo:
+	@echo "Running Repositories Integration Tests"
+	@go test ./internal/repository/... -count=1 -p 1 -tags=integration
+
+test.domain:
+	@echo "Running Domain Integration Tests"
+	@go test ./internal/domain/... -count=1 -p 1 -tags=integration
+
+test.infra:
+	@echo "Running Infrastructure Integration Tests"
+	@go test ./internal/infrastructure/... -v -count=1 -p 1 -tags=integration
+
 # Target: test-coverage - Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
