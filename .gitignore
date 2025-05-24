@@ -44,8 +44,11 @@ Thumbs.db
 .env.*.local
 
 # Database dumps
-*.sql
 *.dump
 
 # Binary files
 bin/
+
+**/*.md
+!**/README.md
+!**/CHANGELOG.md
